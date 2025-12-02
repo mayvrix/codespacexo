@@ -1,4 +1,4 @@
-# 🚀 odespaceXO
+# 🚀 codespaceXO
 
 A smart and convenient **code backup & sync platform** made for students and developers.  
 Upload your code files securely — anytime, anywhere!
