@@ -1,0 +1,28 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+body {
+  @apply bg-black text-white;
+}
+
+@keyframes gradientShift {
+  0% { background-position: 0% 50%; }
+  50% { background-position: 100% 50%; }
+  100% { background-position: 0% 50%; }
+}
+
+.animated-gradient {
+  background: linear-gradient(
+    270deg,
+    #d12626,   /* slate gray */
+    #3B82F6,   /* soft blue */
+    #6366F1,   /* indigo */
+    #8506fc,   /* violet */
+    #14B8A6,   /* teal */
+    #0dbe07    /* cool neutral */
+  );
+  background-size: 600% 600%;
+  animation: gradientShift 10s ease infinite;
+  color: white;
+}

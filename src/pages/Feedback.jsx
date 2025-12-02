@@ -1,0 +1,400 @@
+import React from "react";
+
+// --- Firebase Imports ---
+// We need app, firestore (db), and auth (for anonymous sign-in)
+import { initializeApp } from "firebase/app";
+import { 
+  getFirestore, 
+  collection, 
+  getDocs, 
+  query, 
+  orderBy 
+} from "firebase/firestore";
+import { getAuth, signInAnonymously, onAuthStateChanged } from "firebase/auth";
+
+// --- Helper Components for Icons (Kept for Login Page) ---
+const EyeIcon = ({ className }) => (
+  <svg
+    className={className}
+    xmlns="http://www.w3.org/2000/svg"
+    fill="none"
+    viewBox="0 0 24 24"
+    strokeWidth={1.5}
+    stroke="currentColor"
+  >
+    <path
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      d="M2.036 12.322a1.012 1.012 0 010-.639C3.423 7.51 7.36 4.5 12 4.5c4.638 0 8.573 3.007 9.963 7.178.07.207.07.431 0 .639C20.577 16.49 16.64 19.5 12 19.5c-4.638 0-8.573-3.007-9.963-7.178z"
+    />
+    <path
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"
+    />
+  </svg>
+);
+
+const EyeSlashIcon = ({ className }) => (
+  <svg
+    className={className}
+    xmlns="http://www.w3.org/2000/svg"
+    fill="none"
+    viewBox="0 0 24 24"
+    strokeWidth={1.5}
+    stroke="currentColor"
+  >
+    <path
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      d="M3.98 8.223A10.477 10.477 0 001.934 12C3.226 16.338 7.244 19.5 12 19.5c.993 0 1.953-.138 2.863-.395M6.228 6.228A10.45 10.45 0 0112 4.5c4.756 0 8.773 3.162 10.065 7.498a10.523 10.523 0 01-4.293 5.774M6.228 6.228L3 3m3.228 3.228l3.65 3.65m7.894 7.894L21 21m-3.228-3.228l-3.65-3.65m0 0a3 3 0 10-4.243-4.243m4.243 4.243L6.228 6.228"
+    />
+  </svg>
+);
+
+// --- FIREBASE CONFIG (From previous conversation) ---
+const firebaseConfig = {
+  apiKey: "AIzaSyCKNf9g-t1jpcNcIKCuvpfATrjLhXBPu_o",
+  authDomain: "codespacexo.firebaseapp.com",
+  projectId: "codespacexo",
+  storageBucket: "codespacexo.firebasestorage.app",
+  messagingSenderId: "1095307017305",
+  appId: "1:1095307017305:web:ec0ba2bfebebb894e74548"
+};
+
+// --- INITIALIZE SERVICES ---
+let app, db, auth;
+try {
+  app = initializeApp(firebaseConfig);
+  db = getFirestore(app);
+  auth = getAuth(app);
+} catch (e) {
+  console.error("Failed to initialize Firebase:", e);
+}
+
+
+/**
+ * Shared styles for the application. (Unchanged)
+ */
+const PageStyles = () => (
+  <style>{`
+    @import url('https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap');
+    
+    body {
+      font-family: 'Press Start 2P', cursive;
+    }
+    .font-press-start {
+      font-family: 'Press Start 2P', cursive;
+    }
+    .text-glow {
+      text-shadow: 0 0 6px rgba(50, 205, 50, 0.7);
+    }
+    @keyframes spin {
+      to { transform: rotate(360deg); }
+    }
+    .spinner {
+      border: 3px solid rgba(255, 255, 255, 0.3);
+      border-top-color: #fff;
+      border-radius: 50%;
+      width: 1.25rem; height: 1.25rem;
+      animation: spin 1s linear infinite;
+    }
+    .scrollbar-thin {
+      scrollbar-width: thin;
+      scrollbar-color: #32CD32 #000000;
+    }
+    .scrollbar-thin::-webkit-scrollbar { width: 8px; }
+    .scrollbar-thin::-webkit-scrollbar-track { background: #000000; }
+    .scrollbar-thin::-webkit-scrollbar-thumb {
+      background-color: #32CD32;
+      border-radius: 0;
+      border: 0;
+    }
+    /* Simple button for dashboard */
+    .dash-button {
+      background-color: #32CD32;
+      color: #000;
+      font-family: 'Press Start 2P', cursive;
+      font-size: 10px;
+      padding: 8px 12px;
+      border: none;
+      cursor: pointer;
+    }
+    .dash-button:hover {
+      background-color: #fff;
+    }
+    /* Simple input for dashboard */
+    .dash-input {
+      font-family: 'Press Start 2P', cursive;
+      font-size: 10px;
+      background-color: #000;
+      color: #32CD32;
+      border: 1px solid #32CD32;
+      padding: 8px;
+      outline: none;
+    }
+  `}</style>
+);
+
+// --- DASHBOARD HELPER COMPONENTS (Kept for styling) ---
+const DashboardCard = ({ title, children }) => (
+  <div className="border-2 border-green-400 p-4 mb-4">
+    <h3 className="text-lg text-green-400 text-glow mb-3 uppercase">{title}</h3>
+    <div className="space-y-2 text-sm">{children}</div>
+  </div>
+);
+
+
+/**
+ * The main application page, now fetching LIVE Feedback.
+ */
+const MainPage = () => {
+  const [loading, setLoading] = React.useState(true);
+  const [isAuthReady, setIsAuthReady] = React.useState(false);
+  const [feedbackList, setFeedbackList] = React.useState([]);
+  const [error, setError] = React.useState(null);
+
+  // --- Handle Firebase Auth ---
+  // We must sign in (even anonymously) to read from Firestore
+  React.useEffect(() => {
+    if (!auth) {
+        setError("Firebase Auth failed to initialize.");
+        setLoading(false);
+        return;
+    }
+    const unsubscribe = onAuthStateChanged(auth, async (user) => {
+      if (user) {
+        setIsAuthReady(true); // User is ready
+      } else {
+        // No user, sign in anonymously
+        try {
+          await signInAnonymously(auth);
+          setIsAuthReady(true);
+        } catch (e) {
+          setError("Failed to sign in to Firebase: " + e.message);
+          setLoading(false);
+        }
+      }
+    });
+    return () => unsubscribe();
+  }, []);
+
+  // --- Fetch REAL Firebase Data ---
+  React.useEffect(() => {
+    // Wait until we are authenticated
+    if (!isAuthReady || !db) return;
+
+    const fetchFeedback = async () => {
+      setLoading(true);
+      setError(null);
+      try {
+        // Path is "feedback" as per your new snippet
+        const feedbackCol = collection(db, "feedback");
+        
+        // Query to get newest first, using "createdAt" field
+        const q = query(feedbackCol, orderBy("createdAt", "desc"));
+
+        const querySnapshot = await getDocs(q);
+        
+        const fbList = querySnapshot.docs.map(doc => ({
+          id: doc.id,
+          ...doc.data()
+        }));
+        
+        setFeedbackList(fbList);
+
+      } catch (e) {
+        setError("Firebase Error: " + e.message);
+      }
+      setLoading(false);
+    };
+
+    fetchFeedback();
+  }, [isAuthReady]); // Run when auth is ready
+
+  
+  // Auth Loading State
+  if (!isAuthReady) {
+    return (
+      <div className="w-full min-h-screen bg-black text-green-400 font-press-start flex flex-col items-center justify-center p-6 text-glow">
+        <span className="text-xl font-semibold">dashXO</span>
+        <span className="mt-4 text-lg">SIGNING IN...</span>
+      </div>
+    );
+  }
+  
+  // Data Loading State
+  if (loading) {
+    return (
+      <div className="w-full min-h-screen bg-black text-green-400 font-press-start flex flex-col items-center justify-center p-6 text-glow">
+        <span className="text-xl font-semibold">dashXO</span>
+        <span className="mt-4 text-lg">LOADING DATA...</span>
+      </div>
+    );
+  }
+
+  return (
+    <div className="w-full min-h-screen bg-black text-green-400 font-press-start p-4 md:p-6 scrollbar-thin">
+      <span className="text-xl font-semibold text-glow">dashXO</span>
+      
+    {/* --- Main Content Area --- */}
+      <div className="mt-6 w-full max-w-4xl mx-auto">
+        <h2 className="text-2xl text-glow mb-4">[ FEEDBACK ]</h2>
+        
+        <DashboardCard title="Received Feedback">
+          {/* Show error if one exists */}
+          {error && <p className="text-red-400 text-xs mb-2">{error}</p>}
+
+          {/* Show data if available, else show "No Data." */}
+          {!error && feedbackList.length > 0 ? (
+            <div className="space-y-4">
+              {feedbackList.map((fb) => (
+                <div 
+                  key={fb.id} 
+                  className="pb-3 border-b-2 border-green-900 last:border-b-0"
+                >
+                  {/* Feedback Title */}
+                  <h4 className="text-base text-white text-glow">{fb.statement}</h4>
+                  {/* Feedback Description */}
+                  <p className="text-sm text-gray-300 mt-2 leading-relaxed">{fb.description}</p>
+                  {/* Feedback Date (converts timestamp to readable string) */}
+                  <p className="text-xs text-gray-500 mt-2">
+                    Received: {fb.createdAt?.toDate().toLocaleString() ?? 'No Date'}
+                  </p>
+                </div>
+              ))}
+            </div>
+          ) : (
+            // This shows if there's no error but list is empty
+            !error && <p className="text-gray-400">No Data.</p>
+          )}
+        </DashboardCard>
+      </div>
+    </div>
+  );
+};
+
+/**
+ * The Login page component, styled like the example. (Unchanged)
+ */
+const LoginPage = ({ onLogin }) => {
+  const [password, setPassword] = React.useState('');
+  const [error, setError] = React.useState('');
+  const [showPassword, setShowPassword] = React.useState(false);
+  const [loading, setLoading] = React.useState(false);
+  
+  const correctPassword = "Tanmaya#136@!";
+
+  const handleSubmit = (e) => {
+    e.preventDefault();
+    if (loading) return;
+    setLoading(true);
+    setError('');
+
+    setTimeout(() => {
+      if (password === correctPassword) {
+        onLogin();
+      } else {
+        setError('Wrong password!');
+        setPassword('');
+      }
+      setLoading(false);
+    }, 1000);
+  };
+
+  return (
+    <div className="bg-black text-white font-press-start flex flex-col items-center min-h-screen p-4 justify-center">
+      <div className="flex flex-col items-center mb-6">
+        <h1 className="text-4xl md:text-6xl tracking-wider text-center">
+          dashXO
+        </h1>
+      </div>
+
+      <div className="w-full max-w-md">
+        <form
+          onSubmit={handleSubmit}
+          className="border-2 border-white p-6 flex flex-col items-center"
+        >
+          <p className="mb-4 text-center text-sm">ENTER PASSWORD</p>
+          
+          <div className="relative w-full mb-2">
+            <input
+              type={showPassword ? "text" : "password"}
+              placeholder="PASSWORD"
+              autoFocus
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              className="font-press-start border-2 border-white p-2 w-full text-center outline-none focus:bg-gray-800 bg-black text-white text-sm"
+            />
+            <button
+              type="button"
+              onClick={() => setShowPassword(!showPassword)}
+              className="absolute inset-y-0 right-0 flex items-center pr-3"
+              aria-label={showPassword ? "Hide password" : "Show password"}
+            >
+              {showPassword ? (
+                <EyeSlashIcon className="h-5 w-5 text-gray-300" />
+              ) : (
+                <EyeIcon className="h-5 w-5 text-gray-300" />
+              )}
+            </button>
+          </div>
+
+          {error && (
+            <p className="text-red-400 text-xs mb-2 text-center">
+              {error}
+            </p>
+          )}
+
+          <div className="flex justify-end w-full mt-2">
+            <button
+              type="submit"
+              disabled={loading}
+              className="bg-white text-black px-4 py-2 text-sm flex items-center justify-center disabled:opacity-75"
+              style={{ minWidth: '80px' }}
+            >
+              {loading ? (
+                <div className="spinner-dark">
+                  <style>{`
+                    @keyframes spin-dark { to { transform: rotate(360deg); } }
+                    .spinner-dark {
+                      border: 3px solid rgba(0, 0, 0, 0.3);
+                      border-top-color: #000;
+                      border-radius: 50%;
+                      width: 1.25rem; height: 1.25rem;
+                      animation: spin-dark 1s linear infinite;
+                    }
+                  `}</style>
+                </div>
+              ) : (
+                "ENTER"
+              )}
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  );
+};
+
+/**
+ * Main component to manage authentication state. (Unchanged)
+ */
+export default function DashXO() {
+  const [isLoggedIn, setIsLoggedIn] = React.useState(false);
+
+  const handleLoginSuccess = () => {
+    setIsLoggedIn(true);
+  };
+
+  return (
+    <>
+      <PageStyles />
+      {isLoggedIn ? (
+        <MainPage />
+      ) : (
+        <LoginPage onLogin={handleLoginSuccess} />
+      )}
+    </>
+  );
+}
