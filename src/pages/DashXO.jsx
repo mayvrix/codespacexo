@@ -1,7 +1,8 @@
 import React from "react";
-import { collection, getDocs, query, orderBy } from "firebase/firestore";
+// ✅ Added onSnapshot for real-time updates
+import { collection, query, orderBy, onSnapshot } from "firebase/firestore";
 import { signInAnonymously, onAuthStateChanged } from "firebase/auth";
-import { db, auth } from "../firebase"; // ✅ already initialized
+import { db, auth } from "../firebase"; 
 
 // --- Helper Components for Icons ---
 const EyeIcon = ({ className }) => (
@@ -107,33 +108,32 @@ const MainPage = () => {
     return () => unsubscribe();
   }, []);
 
-  // --- Fetch Feedback from Firestore ---
+  // --- Fetch Feedback (REAL-TIME UPDATES) ---
   React.useEffect(() => {
     if (!isAuthReady || !db) return;
 
-    const fetchFeedback = async () => {
-      setLoading(true);
-      try {
-        const feedbackCol = collection(db, "feedback");
-        const q = query(feedbackCol, orderBy("createdAt", "desc"));
-        const snapshot = await getDocs(q);
-        const data = snapshot.docs.map((doc) => ({
-          id: doc.id,
-          ...doc.data(),
-        }));
-        setFeedbackList(data);
-      } catch (e) {
-        if (e.message.includes("400")) {
-          setSnackbarMsg("Bad Request (400): Check your Firebase rules or query.");
-        } else {
-          setSnackbarMsg("Error loading feedback: " + e.message);
-        }
-      } finally {
-        setLoading(false);
-      }
-    };
+    setLoading(true);
+    const feedbackCol = collection(db, "feedback");
+    // Sort by createdAt descending (newest first). 
+    // NOTE: This will HIDE any documents that do not have a 'createdAt' field.
+    const q = query(feedbackCol, orderBy("createdAt", "desc"));
 
-    fetchFeedback();
+    // Using onSnapshot for real-time data sync
+    const unsubscribe = onSnapshot(q, (snapshot) => {
+      const data = snapshot.docs.map((doc) => ({
+        id: doc.id,
+        ...doc.data(),
+      }));
+      setFeedbackList(data);
+      setLoading(false);
+    }, (error) => {
+      console.error("Firestore Error:", error);
+      setSnackbarMsg("Error loading feedback: " + error.message);
+      setLoading(false);
+    });
+
+    // Cleanup listener on unmount
+    return () => unsubscribe();
   }, [isAuthReady]);
 
   // --- UI States ---
