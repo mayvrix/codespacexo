@@ -590,7 +590,7 @@ export default function Home() {
     setShowDeleteDialog({ show: true, item: folder, type: 'folder' });
   };
 
-  const handleConfirmDelete = async () => {
+ const handleConfirmDelete = async () => {
     const { item, type } = showDeleteDialog;
     if (!item) return;
 
@@ -602,6 +602,11 @@ export default function Home() {
         setDeleteProgress({ total: 1, completed: 0 });
         const path = `${user.uid}/${currentFolder ? currentFolder + "/" : ""}${item.name}`;
         
+        // --- STEP 1: MOVE TO RECYCLE BIN ---
+        showSnackbar(`Moving "${item.name}" to recycle bin...`);
+        await backupToRecycleBin(path);
+
+        // --- STEP 2: DELETE AS USUAL ---
         await supabase.storage.from("files").remove([path]);
         await deleteDoc(doc(db, "files", btoa(path)));
         
@@ -615,28 +620,48 @@ export default function Home() {
         const firestoreBatch = writeBatch(db);
         const supabasePathsToDelete = new Set();
         
-        const filesQuery = query(collection(db, 'files'), where('uid', '==', user.uid), where('folder', '>=', folderRootPath));
+        // --- FIX STARTS HERE: Add the UPPER BOUND ('\uf8ff') to strictly limit deletion ---
+        
+        // 1. Files: strictly inside this folder or its subfolders
+        const filesQuery = query(
+            collection(db, 'files'), 
+            where('uid', '==', user.uid), 
+            where('folder', '>=', folderRootPath),
+            where('folder', '<=', folderRootPath + '\uf8ff') // <--- CRITICAL FIX
+        );
         const filesSnapshot = await getDocs(filesQuery);
         
-        const foldersQuery = query(collection(db, 'folders'), where('uid', '==', user.uid), where('fullPath', '>=', `${supabaseRootPath}/`));
+        // 2. Sub-folders: strictly inside this folder structure
+        const foldersQuery = query(
+            collection(db, 'folders'), 
+            where('uid', '==', user.uid), 
+            where('fullPath', '>=', `${supabaseRootPath}/`),
+            where('fullPath', '<=', `${supabaseRootPath}/` + '\uf8ff') // <--- CRITICAL FIX
+        );
         const foldersSnapshot = await getDocs(foldersQuery);
 
-        const totalDeletions = filesSnapshot.size + foldersSnapshot.size;
-        setDeleteProgress({ total: totalDeletions, completed: 0 });
+        // --- FIX ENDS HERE ---
 
+        const totalDeletions = filesSnapshot.size + foldersSnapshot.size;
+        
+        setDeleteProgress({ total: totalDeletions, completed: 0 });
+        showSnackbar(`Moving contents of "${item.name}" to recycle bin...`);
+
+        // --- PREPARE DATA ---
         filesSnapshot.forEach(doc => {
           firestoreBatch.delete(doc.ref);
           supabasePathsToDelete.add(doc.data().fullPath);
-          setDeleteProgress(prev => ({...prev, completed: prev.completed + 1}));
         });
         
         foldersSnapshot.forEach(doc => {
           firestoreBatch.delete(doc.ref);
           supabasePathsToDelete.add(doc.data().fullPath + '.placeholder');
-          setDeleteProgress(prev => ({...prev, completed: prev.completed + 1}));
         });
 
+        // Add the root folder placeholder itself
         supabasePathsToDelete.add(`${supabaseRootPath}/.placeholder`);
+        
+        // Delete root folder doc from Firestore
         const rootFolderDocId = btoa(`${supabaseRootPath}/`);
         const rootFolderDocRef = doc(db, "folders", rootFolderDocId);
         const rootFolderDocSnap = await getDoc(rootFolderDocRef);
@@ -644,25 +669,67 @@ export default function Home() {
             firestoreBatch.delete(rootFolderDocRef);
         }
 
+        // --- BACKUP TO RECYCLE BIN ---
+        const pathsArray = Array.from(supabasePathsToDelete);
+        
+        if (pathsArray.length > 0) {
+            const backupPromises = pathsArray.map(async (path) => {
+                await backupToRecycleBin(path);
+                setDeleteProgress(prev => ({ ...prev, completed: prev.completed + 0.5 })); 
+            });
+            await Promise.all(backupPromises);
+        }
+
+        // --- EXECUTE DELETE ---
+        showSnackbar(`Deleting "${item.name}"...`);
+
         await firestoreBatch.commit();
         
-        const paths = Array.from(supabasePathsToDelete);
-        if (paths.length > 0) {
-            const { error: removeError } = await supabase.storage.from("files").remove(paths);
+        if (pathsArray.length > 0) {
+            const { error: removeError } = await supabase.storage.from("files").remove(pathsArray);
             if (removeError) {
                 console.error("Supabase bulk delete failed:", removeError);
                 throw removeError;
             }
         }
         
+        setDeleteProgress({ total: totalDeletions, completed: totalDeletions });
         showSnackbar(`Folder "${item.name}" deleted.`);
       }
     } catch (error) {
-        console.error("A critical error occurred during deletion:", error);
+        console.error("Critical error during deletion:", error);
         showSnackbar("Deletion failed. Check console.");
     } finally {
         setIsDeleting(false);
         fetchData(); 
+    }
+  };
+
+ // --- HELPER: Move file to 'recycle' bucket ---
+  const backupToRecycleBin = async (path) => {
+    // FIX: Skip placeholder files. They are 0 bytes and cause 400 errors.
+    // We don't need to back them up.
+    if (path.endsWith(".placeholder")) return;
+
+    try {
+      // 1. Download from 'files'
+      const { data, error: downloadError } = await supabase.storage
+        .from("files")
+        .download(path);
+      
+      if (downloadError) throw downloadError;
+
+      // 2. Upload to 'recycle'
+      const { error: uploadError } = await supabase.storage
+        .from("recycle")
+        .upload(path, data, { upsert: true });
+
+      if (uploadError) throw uploadError;
+      
+    } catch (err) {
+      // We log the error but don't stop the process. 
+      // This ensures if one file fails to backup, the deletion still happens.
+      console.warn(`Failed to move ${path} to recycle bin:`, err);
     }
   };
 
@@ -1126,6 +1193,9 @@ export default function Home() {
     }
   };
 
+
+  // ++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+  
   return (
     <div className="min-h-screen bg-black text-white font-press flex flex-col">
       {/* --- ADDED STYLE TAG TO HIDE SCROLLBARS --- */}
@@ -1149,14 +1219,29 @@ export default function Home() {
         />
       <div className="flex justify-between items-center p-4 border-b border-white">
         <h1 className="text-2xl">CODESPACEXO</h1>
-        <button
-          onClick={handleLogout}
-          className="flex items-center bg-white text-black px-3 py-1 text-sm hover:bg-gray-200 md:px-2"
-        >
-          <img src={BackIcon} alt="back" className="w-6 h-6" />
-          <span className="ml-2 hidden md:inline">Exit</span>
-        </button>
-      </div>
+        
+        {/* --- CHANGED SECTION: ADDED BIN BUTTON --- */}
+        <div className="flex items-center gap-4">
+            <button
+                onClick={() => navigate("/bin")}
+                className="flex items-center bg-white text-black px-3 py-1 text-sm hover:bg-gray-200 md:px-2"
+                title="Recycle Bin"
+            >
+                {/* Reusing DeleteIcon as the Bin Icon per instructions */}
+                <img src={DeleteIcon} alt="bin" className="w-5 h-5" />
+                <span className="ml-2 hidden md:inline">Bin</span>
+            </button>
+
+            <button
+                onClick={handleLogout}
+                className="flex items-center bg-white text-black px-3 py-1 text-sm hover:bg-gray-200 md:px-2"
+            >
+                <img src={BackIcon} alt="back" className="w-6 h-6" />
+                <span className="ml-2 hidden md:inline">Exit</span>
+            </button>
+        </div>
+        {/* --- END CHANGED SECTION --- */}
+    </div>
 
       <div
         className={`flex-1 flex flex-col md:flex-row transition overflow-hidden ${

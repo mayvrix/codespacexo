@@ -9,6 +9,7 @@ import Public from "./pages/public.jsx";
 import Update from "./pages/update.jsx";
 import Dash from "./pages/DashXO.jsx";
 import Feedback from "./pages/Feedback.jsx";
+import Bin from "./pages/Bin.jsx";
 
 export default function App() {
   return (
@@ -22,6 +23,7 @@ export default function App() {
         <Route path="/update" element={<Update />} />
         <Route path="/dashXO" element={<Dash />} />
         <Route path="/feedback" element={<Feedback />} />
+        <Route path="/bin" element={<Bin />} />
       </Routes>
     </Router>
   );

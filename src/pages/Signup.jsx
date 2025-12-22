@@ -1,4 +1,4 @@
-import { useState } from "react";
+import React, { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { auth, db } from "../firebase";
 import { createUserWithEmailAndPassword } from "firebase/auth";
@@ -46,6 +46,48 @@ const EyeSlashIcon = ({ className }) => (
   </svg>
 );
 
+// --- FIX: Move options OUTSIDE to prevent re-renders ---
+const hyperspeedOptions = {
+  onSpeedUp: () => {},
+  onSlowDown: () => {},
+  distortion: 'deepDistortion',
+  length: 400,
+  roadWidth: 18,
+  islandWidth: 2,
+  lanesPerRoad: 3,
+  fov: 90,
+  fovSpeedUp: 150,
+  speedUp: 2,
+  carLightsFade: 0.4,
+  totalSideLightSticks: 50,
+  lightPairsPerRoadWay: 50,
+  shoulderLinesWidthPercentage: 0.05,
+  brokenLinesWidthPercentage: 0.1,
+  brokenLinesLengthPercentage: 0.5,
+  lightStickWidth: [0.12, 0.5],
+  lightStickHeight: [1.3, 1.7],
+  movingAwaySpeed: [60, 80],
+  movingCloserSpeed: [-120, -160],
+  carLightsLength: [400 * 0.05, 400 * 0.15],
+  carLightsRadius: [0.05, 0.14],
+  carWidthPercentage: [0.3, 0.5],
+  carShiftX: [-0.2, 0.2],
+  carFloorSeparation: [0.05, 1],
+  colors: {
+    roadColor: 0x080808,
+    islandColor: 0x0a0a0a,
+    background: 0x000000,
+    shoulderLines: 0x131318,
+    brokenLines: 0x131318,
+    leftCars: [0xff322f, 0xa33010, 0xa81508],
+    rightCars: [0xfdfdf0, 0xf3dea0, 0xe2bb88],
+    sticks: 0xfdfdf0
+  }
+};
+
+// --- FIX: Memoize Component ---
+const MemoizedHyperspeed = React.memo(Hyperspeed);
+
 export default function SignUp() {
   const navigate = useNavigate();
 
@@ -61,17 +103,43 @@ export default function SignUp() {
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
 
+  // --- Helper for Email Validation ---
+  const validateEmail = (email) => {
+    return String(email)
+      .toLowerCase()
+      .match(
+        /^(([^<>()[\]\\.,;:\s@"]+(\.[^<>()[\]\\.,;:\s@"]+)*)|(".+"))@((\[[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}\])|(([a-zA-Z\-0-9]+\.)+[a-zA-Z]{2,}))$/
+      );
+  };
+
   const handleSignUp = async (e) => {
     e.preventDefault();
 
+    // 1. Check for empty fields
     if (!name || !email || !password || !confirmPassword) {
       setError("All fields are required.");
       return;
     }
+
+    // 2. Check Name (Must contain space)
+    if (!name.trim().includes(" ")) {
+      setError("Please enter your full name (First & Last).");
+      return;
+    }
+
+    // 3. Check Email Format
+    if (!validateEmail(email)) {
+      setError("Please enter a valid email address.");
+      return;
+    }
+
+    // 4. Check Password Match
     if (password !== confirmPassword) {
       setError("Passwords do not match.");
       return;
     }
+
+    // 5. Check Password Length
     if (password.length < 6) {
       setError("Password must be at least 6 characters.");
       return;
@@ -106,46 +174,8 @@ export default function SignUp() {
   return (
     <div className="relative min-h-screen w-full bg-black overflow-hidden font-press">
       {/* Background Layer */}
-      <div className="absolute inset-0 z-0">
-        <Hyperspeed
-          effectOptions={{
-            onSpeedUp: () => {},
-            onSlowDown: () => {},
-            distortion: 'deepDistortion',
-            length: 400,
-            roadWidth: 18,
-            islandWidth: 2,
-            lanesPerRoad: 3,
-            fov: 90,
-            fovSpeedUp: 150,
-            speedUp: 2,
-            carLightsFade: 0.4,
-            totalSideLightSticks: 50,
-            lightPairsPerRoadWay: 50,
-            shoulderLinesWidthPercentage: 0.05,
-            brokenLinesWidthPercentage: 0.1,
-            brokenLinesLengthPercentage: 0.5,
-            lightStickWidth: [0.12, 0.5],
-            lightStickHeight: [1.3, 1.7],
-            movingAwaySpeed: [60, 80],
-            movingCloserSpeed: [-120, -160],
-            carLightsLength: [400 * 0.05, 400 * 0.15],
-            carLightsRadius: [0.05, 0.14],
-            carWidthPercentage: [0.3, 0.5],
-            carShiftX: [-0.2, 0.2],
-            carFloorSeparation: [0.05, 1],
-            colors: {
-              roadColor: 0x080808,
-              islandColor: 0x0a0a0a,
-              background: 0x000000,
-              shoulderLines: 0x131318,
-              brokenLines: 0x131318,
-              leftCars: [0xff322f, 0xa33010, 0xa81508],
-              rightCars: [0xfdfdf0, 0xf3dea0, 0xe2bb88],
-              sticks: 0xfdfdf0
-            }
-          }}
-        />
+      <div className="absolute inset-0 z-0 pointer-events-none">
+        <MemoizedHyperspeed effectOptions={hyperspeedOptions} />
       </div>
 
       <style>

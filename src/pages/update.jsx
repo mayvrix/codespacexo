@@ -5,6 +5,12 @@ import { useNavigate } from 'react-router-dom';
 // Add new updates here. They will be automatically sorted by date (newest first).
 const updatesList = [
   {
+    date: '2025-12-22',
+    title: 'Recycle Bin',
+    description:
+      'Safety first! We’ve added a Recycle Bin. Deleted files and folders now move to the Bin rather than being immediately erased. You can visit the Bin to view deleted content, recover items (via download), or permanently delete them when you’re sure.',
+  },
+  {
     date: '2025-11-05',
     title: 'Feedback Support Added',
     description:
