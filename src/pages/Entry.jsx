@@ -1,4 +1,4 @@
-import { useEffect, useState, useRef, useMemo } from "react";
+import React, { useEffect, useState, useRef, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
 import { db, auth } from "../firebase";
 import { collection, getDocs, doc, updateDoc } from "firebase/firestore";
@@ -7,6 +7,7 @@ import {
   sendPasswordResetEmail,
 } from "firebase/auth";
 import Logo from "../assets/xo.png";
+import Hyperspeed from '../comps/hyperspeed';
 
 // --- Helper Components for Icons ---
 const EyeIcon = ({ className }) => (
@@ -48,7 +49,6 @@ const EyeSlashIcon = ({ className }) => (
   </svg>
 );
 
-// --- Helper Function for Name Formatting ---
 const toTitleCase = (str) => {
   if (!str) return "";
   return str.replace(
@@ -68,13 +68,10 @@ export default function Entry() {
   const [showPassword, setShowPassword] = useState(false);
   const [showResetLink, setShowResetLink] = useState(false);
   const [resetMessage, setResetMessage] = useState("");
-  
-  // --- ADDED LOADING STATE ---
   const [loading, setLoading] = useState(false);
 
   const listRef = useRef(null);
 
-  // Fetch and prepare users
   useEffect(() => {
     const fetchUsers = async () => {
       const snapshot = await getDocs(collection(db, "users"));
@@ -89,7 +86,6 @@ export default function Entry() {
     fetchUsers();
   }, []);
 
-  // Filter users based on search query
   const filteredUsers = useMemo(() => {
     if (!searchQuery) return users;
     return users.filter((user) =>
@@ -97,12 +93,10 @@ export default function Entry() {
     );
   }, [users, searchQuery]);
 
-  // Reset selection when search changes
   useEffect(() => {
     setSelectedIndex(0);
   }, [searchQuery]);
 
-  // Keyboard navigation
   useEffect(() => {
     const handleKeyDown = (e) => {
       if (confirmedUser) {
@@ -124,9 +118,7 @@ export default function Entry() {
         case "s":
           e.preventDefault();
           setSelectedIndex((prev) =>
-            prev < filteredUsers.length - 1
-              ? prev + 1
-              : filteredUsers.length - 1
+            prev < filteredUsers.length - 1 ? prev + 1 : filteredUsers.length - 1
           );
           break;
         case "enter":
@@ -142,9 +134,8 @@ export default function Entry() {
 
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [filteredUsers, selectedIndex, confirmedUser, password]); // Added password to deps
+  }, [filteredUsers, selectedIndex, confirmedUser, password]);
 
-  // Auto-scroll user list
   useEffect(() => {
     if (listRef.current && listRef.current.children[selectedIndex]) {
       listRef.current.children[selectedIndex].scrollIntoView({
@@ -153,16 +144,13 @@ export default function Entry() {
     }
   }, [selectedIndex, filteredUsers]);
 
-  // --- MODIFIED LOGIN HANDLER ---
   const handleLogin = async () => {
     if (!confirmedUser || !password) {
       setError("Enter password!");
       setShowResetLink(false);
       return;
     }
-    
-    setLoading(true); // <-- Set loading true
-    
+    setLoading(true);
     try {
       setError("");
       setShowResetLink(false);
@@ -174,11 +162,10 @@ export default function Entry() {
       setError("Wrong password!");
       setShowResetLink(true);
     } finally {
-      setLoading(false); // <-- Set loading false
+      setLoading(false);
     }
   };
 
-  // Forgot Password Handler
   const handleForgotPassword = async () => {
     if (!confirmedUser) return;
     setError("");
@@ -192,7 +179,6 @@ export default function Entry() {
       }, 10000);
     } catch (err) {
       setError("Failed to send reset email. Please try again later.");
-      console.error("Password Reset Error:", err);
     }
   };
 
@@ -205,158 +191,188 @@ export default function Entry() {
   };
 
   return (
-    <div
-      className="bg-black text-white font-press flex flex-col items-center 
-               min-h-screen p-4 
-               justify-center sm:justify-center
-               pb-16"
-    >
-      {/* --- ADDED STYLE TAG FOR SPINNER --- */}
+    <div className="relative min-h-screen w-full bg-black overflow-hidden font-press">
+      {/* Background Layer */}
+      <div className="absolute inset-0 z-0">
+        <Hyperspeed
+          effectOptions={{
+            onSpeedUp: () => {},
+    onSlowDown: () => {},
+    distortion: 'turbulentDistortion',
+    length: 400,
+    roadWidth: 9,
+    islandWidth: 2,
+    lanesPerRoad: 3,
+    fov: 90,
+    fovSpeedUp: 150,
+    speedUp: 2,
+    carLightsFade: 0.4,
+    totalSideLightSticks: 50,
+    lightPairsPerRoadWay: 50,
+    shoulderLinesWidthPercentage: 0.05,
+    brokenLinesWidthPercentage: 0.1,
+    brokenLinesLengthPercentage: 0.5,
+    lightStickWidth: [0.12, 0.5],
+    lightStickHeight: [1.3, 1.7],
+    movingAwaySpeed: [60, 80],
+    movingCloserSpeed: [-120, -160],
+    carLightsLength: [400 * 0.05, 400 * 0.15],
+    carLightsRadius: [0.05, 0.14],
+    carWidthPercentage: [0.3, 0.5],
+    carShiftX: [-0.2, 0.2],
+    carFloorSeparation: [0.05, 1],
+    colors: {
+      roadColor: 0x080808,
+      islandColor: 0x0a0a0a,
+      background: 0x000000,
+      shoulderLines: 0x131318,
+      brokenLines: 0x131318,
+      leftCars: [0xdc5b20, 0xdca320, 0xdc2020],
+      rightCars: [0x334bf7, 0xe5e6ed, 0xbfc6f3],
+      sticks: 0xc5e8eb
+    }
+  }}
+        />
+      </div>
+
       <style>
         {`
-          @keyframes spin {
-            to {
-              transform: rotate(360deg);
-            }
-          }
+          @keyframes spin { to { transform: rotate(360deg); } }
           .spinner {
-            border: 3px solid rgba(0, 0, 0, 0.3); /* Light black/grey border */
-            border-top-color: #000; /* Solid black for the spinning part */
+            border: 3px solid rgba(255, 255, 255, 0.3);
+            border-top-color: #fff;
             border-radius: 50%;
-            width: 1.25rem; /* 20px */
-            height: 1.25rem; /* 20px */
+            width: 1.25rem;
+            height: 1.25rem;
             animation: spin 1s linear infinite;
           }
         `}
       </style>
 
-      <div className="flex flex-col items-center mb-6">
-        <img
-          src={Logo}
-          alt="XO Logo"
-          className="w-24 h-24 md:w-32 md:h-32 mb-0 object-contain"
-        />
-        <h1 className="text-2xl md:text-4xl tracking-wider text-center">
-          CODESPACEXO
-        </h1>
-      </div>
+      {/* Content Layer */}
+      <div className="relative z-10 flex flex-col items-center justify-center min-h-screen p-4 pb-16 text-white">
+        <div className="flex flex-col items-center mb-6">
+          <img
+            src={Logo}
+            alt="XO Logo"
+            className="w-24 h-24 md:w-32 md:h-32 mb-0 object-contain"
+          />
+          <h1 className="text-2xl md:text-4xl tracking-wider text-center">
+            CODESPACEXO
+          </h1>
+        </div>
 
-      <div className="w-full max-w-md">
-        {!confirmedUser ? (
-          <>
-            <input
-              type="text"
-              placeholder="SEARCH USER..."
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              className="font-press border-2 border-white p-2 w-full text-left outline-none focus:bg-gray-800 mb-2 text-sm bg-black text-white"
-            />
-            <div
-              ref={listRef}
-              className="border-2 border-white h-52 overflow-y-auto relative scrollbar-thin scrollbar-thumb-white scrollbar-track-black"
-            >
-              {filteredUsers.length > 0 ? (
-                filteredUsers.map((user, index) => (
-                  <div
-                    key={user.uid}
-                    onClick={() => setConfirmedUser(user)}
-                    className={`p-2 cursor-pointer select-none ${
-                      selectedIndex === index ? "bg-white text-black" : ""
-                    }`}
-                  >
-                    {user.name}
-                  </div>
-                ))
-              ) : (
-                <p className="p-2">
-                  {users.length === 0 ? "Loading..." : "No users found."}
-                </p>
-              )}
-            </div>
-            <div className="mt-5 flex justify-between gap-2">
-              <button
-                onClick={() => navigate("/signup")}
-                className="bg-white text-black px-4 py-2 text-sm"
+        <div className="w-full max-w-md bg-black/40 backdrop-blur-sm p-4 rounded-lg">
+          {!confirmedUser ? (
+            <>
+              <input
+                type="text"
+                placeholder="SEARCH USER..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                className="font-press border-2 border-white p-2 w-full text-left outline-none focus:bg-gray-800 mb-2 text-sm bg-black text-white"
+              />
+              <div
+                ref={listRef}
+                className="border-2 border-white h-52 overflow-y-auto relative scrollbar-thin scrollbar-thumb-white scrollbar-track-black bg-black/60"
               >
-                SIGN UP
-              </button>
-              <button
-                onClick={() => navigate("/public")}
-                className="animated-gradient px-4 py-2 text-sm hover:brightness-110 transition"
-              >
-                PUBLIC
-              </button>
-            </div>
-          </>
-        ) : (
-          <div className="border-2 border-white p-6 flex flex-col items-center">
-            {resetMessage ? (
-              <p className="text-center text-green-400">{resetMessage}</p>
-            ) : (
-              <>
-                <p className="mb-4 text-center">{confirmedUser.name}</p>
-                <div className="relative w-full mb-2">
-                  <input
-                    type={showPassword ? "text" : "password"}
-                    placeholder="PASSWORD"
-                    autoFocus
-                    value={password}
-                    onChange={(e) => setPassword(e.target.value)}
-                    className="font-press border-2 border-white p-2 w-full text-center outline-none focus:bg-gray-800 bg-black text-white"
-                  />
-                  <button
-                    type="button"
-                    onClick={() => setShowPassword(!showPassword)}
-                    className="absolute inset-y-0 right-0 flex items-center pr-3"
-                  >
-                    {showPassword ? (
-                      <EyeSlashIcon className="h-5 w-5 text-gray-300" />
-                    ) : (
-                      <EyeIcon className="h-5 w-5 text-gray-300" />
-                    )}
-                  </button>
-                </div>
-
-                {error && (
-                  <p className="text-red-400 text-xs mb-2 text-center">
-                    {error}
+                {filteredUsers.length > 0 ? (
+                  filteredUsers.map((user, index) => (
+                    <div
+                      key={user.uid}
+                      onClick={() => setConfirmedUser(user)}
+                      className={`p-2 cursor-pointer select-none transition-colors ${
+                        selectedIndex === index ? "bg-white text-black" : "hover:bg-white/10"
+                      }`}
+                    >
+                      {user.name}
+                    </div>
+                  ))
+                ) : (
+                  <p className="p-2">
+                    {users.length === 0 ? "Loading..." : "No users found."}
                   </p>
                 )}
+              </div>
+              <div className="mt-5 flex justify-between gap-2">
+                <button
+                  onClick={() => navigate("/signup")}
+                  className="bg-white text-black px-4 py-2 text-sm hover:invert transition"
+                >
+                  SIGN UP
+                </button>
+                <button
+                  onClick={() => navigate("/public")}
+                  className="animated-gradient px-4 py-2 text-sm hover:brightness-110 transition text-white"
+                >
+                  PUBLIC
+                </button>
+              </div>
+            </>
+          ) : (
+            <div className="border-2 border-white p-6 flex flex-col items-center bg-black/60">
+              {resetMessage ? (
+                <p className="text-center text-green-400">{resetMessage}</p>
+              ) : (
+                <>
+                  <p className="mb-4 text-center">{confirmedUser.name}</p>
+                  <div className="relative w-full mb-2">
+                    <input
+                      type={showPassword ? "text" : "password"}
+                      placeholder="PASSWORD"
+                      autoFocus
+                      value={password}
+                      onChange={(e) => setPassword(e.target.value)}
+                      className="font-press border-2 border-white p-2 w-full text-center outline-none focus:bg-gray-800 bg-black text-white"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowPassword(!showPassword)}
+                      className="absolute inset-y-0 right-0 flex items-center pr-3"
+                    >
+                      {showPassword ? (
+                        <EyeSlashIcon className="h-5 w-5 text-gray-300" />
+                      ) : (
+                        <EyeIcon className="h-5 w-5 text-gray-300" />
+                      )}
+                    </button>
+                  </div>
 
-                {showResetLink && (
-                  <button
-                    onClick={handleForgotPassword}
-                    className="text-xs text-blue-400 hover:underline mb-4"
-                  >
-                    Forgot Password?
-                  </button>
-                )}
+                  {error && (
+                    <p className="text-red-400 text-xs mb-2 text-center">
+                      {error}
+                    </p>
+                  )}
 
-                <div className="flex justify-between w-full mt-2">
-                  <button
-                    onClick={handleBack}
-                    className="bg-white text-black px-4 py-2 text-sm"
-                  >
-                    BACK
-                  </button>
-                  
-                  {/* --- MODIFIED LOADING BUTTON --- */}
-                  <button
-                    onClick={handleLogin}
-                    disabled={loading}
-                    className="bg-white text-black px-4 py-2 text-sm flex items-center justify-center disabled:opacity-75"
-                  >
-                    {loading ? (
-                      <div className="spinner"></div>
-                    ) : (
-                      "ENTER"
-                    )}
-                  </button>
-                </div>
-              </>
-            )}
-          </div>
-        )}
+                  {showResetLink && (
+                    <button
+                      onClick={handleForgotPassword}
+                      className="text-xs text-blue-400 hover:underline mb-4"
+                    >
+                      Forgot Password?
+                    </button>
+                  )}
+
+                  <div className="flex justify-between w-full mt-2">
+                    <button
+                      onClick={handleBack}
+                      className="bg-white text-black px-4 py-2 text-sm"
+                    >
+                      BACK
+                    </button>
+                    <button
+                      onClick={handleLogin}
+                      disabled={loading}
+                      className="bg-white text-black px-4 py-2 text-sm flex items-center justify-center disabled:opacity-75"
+                    >
+                      {loading ? <div className="spinner"></div> : "ENTER"}
+                    </button>
+                  </div>
+                </>
+              )}
+            </div>
+          )}
+        </div>
       </div>
     </div>
   );

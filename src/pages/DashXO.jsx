@@ -95,7 +95,7 @@ const MainPage = () => {
       if (user) {
         setIsAuthReady(true);
       } else {
-        try {
+        try { 
           await signInAnonymously(auth);
           setIsAuthReady(true);
         } catch (e) {
