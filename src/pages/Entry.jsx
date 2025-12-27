@@ -1,51 +1,34 @@
 import React, { useEffect, useState, useRef, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
 import { db, auth } from "../firebase";
-import { collection, getDocs, doc, updateDoc } from "firebase/firestore";
+import { collection, getDocs, doc, updateDoc, getDoc } from "firebase/firestore";
 import {
   signInWithEmailAndPassword,
   sendPasswordResetEmail,
+  GoogleAuthProvider,
+  signInWithPopup
 } from "firebase/auth";
 import Logo from "../assets/xo.png";
 import Hyperspeed from '../comps/hyperspeed';
 
 // --- Helper Components for Icons ---
 const EyeIcon = ({ className }) => (
-  <svg
-    className={className}
-    xmlns="http://www.w3.org/2000/svg"
-    fill="none"
-    viewBox="0 0 24 24"
-    strokeWidth={1.5}
-    stroke="currentColor"
-  >
-    <path
-      strokeLinecap="round"
-      strokeLinejoin="round"
-      d="M2.036 12.322a1.012 1.012 0 010-.639C3.423 7.51 7.36 4.5 12 4.5c4.638 0 8.573 3.007 9.963 7.178.07.207.07.431 0 .639C20.577 16.49 16.64 19.5 12 19.5c-4.638 0-8.573-3.007-9.963-7.178z"
-    />
-    <path
-      strokeLinecap="round"
-      strokeLinejoin="round"
-      d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"
-    />
+  <svg className={className} xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor">
+    <path strokeLinecap="round" strokeLinejoin="round" d="M2.036 12.322a1.012 1.012 0 010-.639C3.423 7.51 7.36 4.5 12 4.5c4.638 0 8.573 3.007 9.963 7.178.07.207.07.431 0 .639C20.577 16.49 16.64 19.5 12 19.5c-4.638 0-8.573-3.007-9.963-7.178z" />
+    <path strokeLinecap="round" strokeLinejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
   </svg>
 );
 
 const EyeSlashIcon = ({ className }) => (
-  <svg
-    className={className}
-    xmlns="http://www.w3.org/2000/svg"
-    fill="none"
-    viewBox="0 0 24 24"
-    strokeWidth={1.5}
-    stroke="currentColor"
-  >
-    <path
-      strokeLinecap="round"
-      strokeLinejoin="round"
-      d="M3.98 8.223A10.477 10.477 0 001.934 12C3.226 16.338 7.244 19.5 12 19.5c.993 0 1.953-.138 2.863-.395M6.228 6.228A10.45 10.45 0 0112 4.5c4.756 0 8.773 3.162 10.065 7.498a10.523 10.523 0 01-4.293 5.774M6.228 6.228L3 3m3.228 3.228l3.65 3.65m7.894 7.894L21 21m-3.228-3.228l-3.65-3.65m0 0a3 3 0 10-4.243-4.243m4.243 4.243L6.228 6.228"
-    />
+  <svg className={className} xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor">
+    <path strokeLinecap="round" strokeLinejoin="round" d="M3.98 8.223A10.477 10.477 0 001.934 12C3.226 16.338 7.244 19.5 12 19.5c.993 0 1.953-.138 2.863-.395M6.228 6.228A10.45 10.45 0 0112 4.5c4.756 0 8.773 3.162 10.065 7.498a10.523 10.523 0 01-4.293 5.774M6.228 6.228L3 3m3.228 3.228l3.65 3.65m7.894 7.894L21 21m-3.228-3.228l-3.65-3.65m0 0a3 3 0 10-4.243-4.243m4.243 4.243L6.228 6.228" />
+  </svg>
+);
+
+// Monochrome Google Icon
+const GoogleIcon = ({ className }) => (
+  <svg className={className} xmlns="http://www.w3.org/2000/svg" viewBox="0 0 48 48" width="24px" height="24px">
+    <path fill="currentColor" d="M43.611,20.083H42V20H24v8h11.303c-1.649,4.657-6.08,8-11.303,8c-6.627,0-12-5.373-12-12c0-6.627,5.373-12,12-12c3.059,0,5.842,1.154,7.961,3.039l5.657-5.657C34.046,6.053,29.268,4,24,4C12.955,4,4,12.955,4,24c0,11.045,8.955,20,20,20c11.045,0,20-8.955,20-20C44,22.659,43.862,21.35,43.611,20.083z"/>
   </svg>
 );
 
@@ -83,7 +66,7 @@ const hyperspeedOptions = {
   carWidthPercentage: [0.3, 0.5],
   carShiftX: [-0.2, 0.2],
   carFloorSeparation: [0.05, 1],
- colors: {
+  colors: {
     roadColor: 0x080808,
     islandColor: 0x0a0a0a,
     background: 0x000000,
@@ -95,7 +78,6 @@ const hyperspeedOptions = {
   }
 };
 
-// --- FIX: Memoize the Hyperspeed component to ensure it doesn't re-render on prop changes ---
 const MemoizedHyperspeed = React.memo(Hyperspeed);
 
 export default function Entry() {
@@ -207,6 +189,41 @@ export default function Entry() {
     }
   };
 
+  const handleGoogleLogin = async () => {
+    setLoading(true);
+    setError("");
+    const provider = new GoogleAuthProvider();
+    
+    try {
+        const result = await signInWithPopup(auth, provider);
+        const user = result.user;
+
+        // CHECK if user exists in Firestore
+        const userDocRef = doc(db, "users", user.uid);
+        const userDoc = await getDoc(userDocRef);
+
+        if (userDoc.exists()) {
+            // User exists, update login time and proceed
+            await updateDoc(userDocRef, { lastLogin: Date.now() });
+            navigate("/home");
+        } else {
+            // User DOES NOT exist - delete auth user to prevent signup and show error
+            await user.delete(); 
+            setError("Account not found. Please Sign Up first.");
+            // Sign out just in case delete fails partially
+            await auth.signOut();
+        }
+    } catch (err) {
+        console.error("Google Login Error:", err);
+        // Handle specific error codes if needed
+        if (err.code !== 'auth/cancelled-popup-request' && err.code !== 'auth/popup-closed-by-user') {
+             setError("Google login failed.");
+        }
+    } finally {
+        setLoading(false);
+    }
+  };
+
   const handleForgotPassword = async () => {
     if (!confirmedUser) return;
     setError("");
@@ -268,6 +285,13 @@ export default function Entry() {
         <div className="w-full max-w-md bg-black/40 backdrop-blur-sm p-4 rounded-lg">
           {!confirmedUser ? (
             <>
+                {/* --- ERROR MESSAGE AREA (for Google Login failures) --- */}
+               {error && !confirmedUser && (
+                <p className="text-red-400 text-xs mb-2 text-center bg-black/50 p-1 border border-red-500">
+                  {error}
+                </p>
+              )}
+
               <input
                 type="text"
                 placeholder="SEARCH USER..."
@@ -300,13 +324,23 @@ export default function Entry() {
               <div className="mt-5 flex justify-between gap-2">
                 <button
                   onClick={() => navigate("/signup")}
-                  className="bg-white text-black px-4 py-2 text-sm hover:invert transition"
+                  className="bg-white text-black px-4 py-2 text-sm hover:invert transition mr-auto"
                 >
                   SIGN UP
                 </button>
+                
+                {/* --- GOOGLE LOGIN BUTTON --- */}
+                <button
+                    onClick={handleGoogleLogin}
+                    className="bg-white text-black w-[38px] h-[38px] flex items-center justify-center hover:bg-gray-200 transition"
+                    title="Log in with Google"
+                >
+                    <GoogleIcon className="w-5 h-5" />
+                </button>
+
                 <button
                   onClick={() => navigate("/notice")}
-                  className="animated-gradient px-4 py-2 text-sm hover:brightness-110 transition text-white"
+                  className="animated-gradient w-[38px] h-[38px] flex items-center justify-center text-sm hover:brightness-110 transition text-white"
                 >
                   ?
                 </button>

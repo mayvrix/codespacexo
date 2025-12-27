@@ -5,6 +5,12 @@ import { useNavigate } from 'react-router-dom';
 // Add new updates here. They will be automatically sorted by date (newest first).
 const updatesList = [
   {
+    date: '2025-12-28',
+    title: 'Authentication & Design Overhaul',
+    description:
+      'Major update! Public access now requires an account for better security. We’ve also introduced Google Login support for faster access. UI has been redesigned with adaptive mobile layouts and a cleaner aesthetic.',
+  },
+  {
     date: '2025-12-22',
     title: 'Recycle Bin',
     description:
