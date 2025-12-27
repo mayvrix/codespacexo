@@ -231,7 +231,7 @@ export default function Bin() {
       <div className="flex justify-between items-center p-4 border-b border-white">
         <h1 className="text-2xl">RECYCLE BIN</h1>
         <button
-          onClick={() => navigate("/")}
+          onClick={() => window.history.back()}
           className="flex items-center bg-white text-black px-3 py-1 text-sm hover:bg-gray-200"
         >
           <img src={BackIcon} alt="back" className="w-6 h-6" />

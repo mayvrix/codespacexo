@@ -10,6 +10,7 @@ import Update from "./pages/update.jsx";
 import Dash from "./pages/DashXO.jsx";
 import Feedback from "./pages/Feedback.jsx";
 import Bin from "./pages/Bin.jsx";
+import Notice from "./pages/Notice.jsx";
 
 export default function App() {
   return (
@@ -24,6 +25,7 @@ export default function App() {
         <Route path="/dashXO" element={<Dash />} />
         <Route path="/feedback" element={<Feedback />} />
         <Route path="/bin" element={<Bin />} />
+        <Route path="/notice" element={<Notice />} />
       </Routes>
     </Router>
   );

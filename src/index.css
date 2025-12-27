@@ -5,24 +5,21 @@
 body {
   @apply bg-black text-white;
 }
-
-@keyframes gradientShift {
-  0% { background-position: 0% 50%; }
-  50% { background-position: 100% 50%; }
-  100% { background-position: 0% 50%; }
-}
-
-.animated-gradient {
-  background: linear-gradient(
-    270deg,
-    #d12626,   /* slate gray */
-    #3B82F6,   /* soft blue */
-    #6366F1,   /* indigo */
-    #8506fc,   /* violet */
-    #14B8A6,   /* teal */
-    #0dbe07    /* cool neutral */
-  );
-  background-size: 600% 600%;
-  animation: gradientShift 10s ease infinite;
-  color: white;
-}
+        
+          .no-scrollbar::-webkit-scrollbar {
+            display: none;
+          }
+          .no-scrollbar {
+            -ms-overflow-style: none;
+            scrollbar-width: none;
+          }
+          /* --- ADDED FOR PUBLIC BUTTON --- */
+          @keyframes gradient-xy {
+            0%, 100% { background-position: 0% 50%; }
+            50% { background-position: 100% 50%; }
+          }
+          .animated-gradient {
+            background: linear-gradient(270deg, #3b82f6, #8b5cf6, #ec4899);
+            background-size: 200% 200%;
+            animation: gradient-xy 6s ease infinite;
+          }

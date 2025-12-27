@@ -120,6 +120,8 @@ export default function Home() {
   const longPressTriggeredRef = useRef(false);
   const fileInputRef = useRef(null);
 
+  const [isMenuOpen, setIsMenuOpen] = useState(false);
+  
   useEffect(() => {
     const unsubscribe = auth.onAuthStateChanged((u) => {
       if (!u) navigate("/login");
@@ -1197,8 +1199,8 @@ export default function Home() {
   // ++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
   
   return (
-    <div className="min-h-screen bg-black text-white font-press flex flex-col">
-      {/* --- ADDED STYLE TAG TO HIDE SCROLLBARS --- */}
+    <div className="min-h-screen bg-black text-white font-press flex flex-col relative">
+      {/* --- STYLES: Scrollbar Hiding + Animated Gradient --- */}
       <style>
         {`
           .no-scrollbar::-webkit-scrollbar {
@@ -1208,40 +1210,130 @@ export default function Home() {
             -ms-overflow-style: none;
             scrollbar-width: none;
           }
+          @keyframes gradient-xy {
+            0%, 100% { background-position: 0% 50%; }
+            50% { background-position: 100% 50%; }
+          }
+          /* Text Gradient (For Desktop Header & Mobile Public) */
+          .text-gradient-animated {
+            background: linear-gradient(270deg, #86efac, #c084fc, #fca5a5);
+            background-size: 200% 200%;
+            -webkit-background-clip: text;
+            background-clip: text;
+            color: transparent;
+            animation: gradient-xy 6s ease infinite;
+          }
         `}
       </style>
-        <input
-            type="file"
-            ref={fileInputRef}
-            onChange={handleFileSelectChange}
-            className="hidden"
-            multiple
-        />
-      <div className="flex justify-between items-center p-4 border-b border-white">
-        <h1 className="text-2xl">CODESPACEXO</h1>
+
+      <input
+        type="file"
+        ref={fileInputRef}
+        onChange={handleFileSelectChange}
+        className="hidden"
+        multiple
+      />
+
+      {/* --- HEADER --- */}
+      <div className="flex justify-between items-center p-4 border-b border-white bg-black z-30 relative">
+        <h1 className="text-2xl">
+          {/* Mobile Title */}
+          <span className="md:hidden">CSXO</span>
+          {/* Desktop Title */}
+          <span className="max-md:hidden">CODESPACEXO</span>
+        </h1>
         
-        {/* --- CHANGED SECTION: ADDED BIN BUTTON --- */}
-        <div className="flex items-center gap-4">
+        {/* --- DESKTOP MENU (Text Only with Pipes) --- */}
+        <div className="flex items-center gap-4 max-md:hidden">
+            <button
+                onClick={() => navigate("/public")}
+                className="text-gradient-animated text-xl font hover:brightness-110 transition tracking-widest"
+            >
+                PUBLIC
+            </button>
+
+            <span className="text-white text-3xl font-space">|</span>
+
             <button
                 onClick={() => navigate("/bin")}
-                className="flex items-center bg-white text-black px-3 py-1 text-sm hover:bg-gray-200 md:px-2"
+                className="text-white text-xl hover:text-gray-300 transition tracking-widest"
                 title="Recycle Bin"
             >
-                {/* Reusing DeleteIcon as the Bin Icon per instructions */}
-                <img src={DeleteIcon} alt="bin" className="w-5 h-5" />
-                <span className="ml-2 hidden md:inline">Bin</span>
+                BIN
             </button>
+
+            <span className="text-white text-3xl font-space">|</span>
 
             <button
                 onClick={handleLogout}
-                className="flex items-center bg-white text-black px-3 py-1 text-sm hover:bg-gray-200 md:px-2"
+                className="text-white text-xl hover:text-gray-300 transition tracking-widest"
             >
-                <img src={BackIcon} alt="back" className="w-6 h-6" />
-                <span className="ml-2 hidden md:inline">Exit</span>
+                EXIT
             </button>
         </div>
-        {/* --- END CHANGED SECTION --- */}
-    </div>
+
+        {/* --- MOBILE HAMBURGER BUTTON --- */}
+        <button 
+          className="md:hidden text-white p-1"
+          onClick={() => setIsMenuOpen(true)}
+        >
+          <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={2.5} stroke="currentColor" className="w-8 h-8">
+            <path strokeLinecap="round" strokeLinejoin="round" d="M3.75 6.75h16.5M3.75 12h16.5m-16.5 5.25h16.5" />
+          </svg>
+        </button>
+      </div>
+
+      {/* --- MOBILE RIGHT DRAWER (Fonts Only, No Boxes) --- */}
+      {isMenuOpen && (
+        <div className="fixed inset-0 z-50 flex justify-end md:hidden">
+          {/* Backdrop */}
+          <div 
+            className="absolute inset-0 bg-black/60 backdrop-blur-sm"
+            onClick={() => setIsMenuOpen(false)}
+          ></div>
+
+          {/* Drawer Content */}
+          <div className="relative z-10 w-64 bg-black border-l-2 border-white h-full p-6 flex flex-col gap-8 shadow-2xl animate-in slide-in-from-right duration-300">
+            
+            {/* Header / Close */}
+            <div className="flex justify-between items-center border-b border-white pb-4">
+              <span className="text-xl font-bold">MENU</span>
+              <button onClick={() => setIsMenuOpen(false)}>
+                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-8 h-8 hover:text-red-500">
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </button>
+            </div>
+
+            {/* Menu Items: Just Fonts, Stacked Vertical */}
+            <div className="flex flex-col gap-6 items-start mt-4">
+                <button
+                    onClick={() => { navigate("/public"); setIsMenuOpen(false); }}
+                    className="text-gradient-animated text-2xl font-bold tracking-widest hover:brightness-110 transition"
+                >
+                    PUBLIC
+                </button>
+
+                <button
+                    onClick={() => { navigate("/bin"); setIsMenuOpen(false); }}
+                    className="text-white text-2xl font-bold tracking-widest hover:text-gray-300 transition"
+                >
+                    BIN
+                </button>
+
+                <button
+                    onClick={() => { handleLogout(); setIsMenuOpen(false); }}
+                    className="text-white text-2xl font-bold tracking-widest hover:text-gray-300 transition"
+                >
+                    EXIT
+                </button>
+            </div>
+
+          </div>
+        </div>
+      )}
+    
+
 
       <div
         className={`flex-1 flex flex-col md:flex-row transition overflow-hidden ${

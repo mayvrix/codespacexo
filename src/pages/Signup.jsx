@@ -46,13 +46,16 @@ const EyeSlashIcon = ({ className }) => (
   </svg>
 );
 
-// --- FIX: Move options OUTSIDE to prevent re-renders ---
+
+
+
+// --- FIX: Move options OUTSIDE the component to prevent re-renders ---
 const hyperspeedOptions = {
   onSpeedUp: () => {},
   onSlowDown: () => {},
   distortion: 'deepDistortion',
   length: 400,
-  roadWidth: 18,
+  roadWidth: 9,
   islandWidth: 2,
   lanesPerRoad: 3,
   fov: 90,
@@ -79,9 +82,9 @@ const hyperspeedOptions = {
     background: 0x000000,
     shoulderLines: 0x131318,
     brokenLines: 0x131318,
-    leftCars: [0xff322f, 0xa33010, 0xa81508],
-    rightCars: [0xfdfdf0, 0xf3dea0, 0xe2bb88],
-    sticks: 0xfdfdf0
+    leftCars: [0xdc5b20, 0xdca320, 0xdc2020],
+    rightCars: [0x334bf7, 0xe5e6ed, 0xbfc6f3],
+    sticks: 0xc5e8eb
   }
 };
 

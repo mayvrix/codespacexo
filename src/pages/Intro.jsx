@@ -1,5 +1,7 @@
 import React, { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
+import { onAuthStateChanged } from "firebase/auth";
+import { auth } from "../firebase"; // Ensure this path matches your project structure
 import TextPressure from "../comps/textPressure";
 import Shuffle from "../comps/shuffle";
 import Aurora from "../comps/aurora";
@@ -10,11 +12,23 @@ export default function Intro() {
   const navigate = useNavigate();
   const [isMobile, setIsMobile] = useState(window.innerWidth < 768);
 
+  // --- 1. Handle Window Resize for Mobile View ---
   useEffect(() => {
     const handleResize = () => setIsMobile(window.innerWidth < 768);
     window.addEventListener("resize", handleResize);
     return () => window.removeEventListener("resize", handleResize);
   }, []);
+
+  // --- 2. Handle Auth Redirect (Auto-login) ---
+  useEffect(() => {
+    const unsubscribe = onAuthStateChanged(auth, (user) => {
+      if (user) {
+        // If user is already logged in, skip intro and go to home
+        navigate("/home");
+      }
+    });
+    return () => unsubscribe();
+  }, [navigate]);
 
   return (
     <>
@@ -136,8 +150,6 @@ export default function Intro() {
           >
             visit
           </button>
-
-          
         </div>
       </div>
 
