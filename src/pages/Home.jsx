@@ -1247,7 +1247,7 @@ export default function Home() {
         <div className="flex items-center gap-4 max-md:hidden">
             <button
                 onClick={() => navigate("/public")}
-                className="text-gradient-animated text-xl font hover:brightness-110 transition tracking-widest"
+                className="text-gradient-animated text-lg font hover:brightness-110 transition tracking-widest"
             >
                 PUBLIC
             </button>
@@ -1256,7 +1256,7 @@ export default function Home() {
 
             <button
                 onClick={() => navigate("/bin")}
-                className="text-white text-xl hover:text-gray-300 transition tracking-widest"
+                className="text-white text-lg hover:text-gray-300 transition tracking-widest"
                 title="Recycle Bin"
             >
                 BIN
@@ -1266,7 +1266,7 @@ export default function Home() {
 
             <button
                 onClick={handleLogout}
-                className="text-white text-xl hover:text-gray-300 transition tracking-widest"
+                className="text-white text-lg hover:text-gray-300 transition tracking-widest"
             >
                 EXIT
             </button>
@@ -1297,7 +1297,7 @@ export default function Home() {
             
             {/* Header / Close */}
             <div className="flex justify-between items-center border-b border-white pb-4">
-              <span className="text-xl font-bold">MENU</span>
+              <span className="text-2xl">MENU</span>
               <button onClick={() => setIsMenuOpen(false)}>
                 <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-8 h-8 hover:text-red-500">
                   <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
@@ -1309,21 +1309,21 @@ export default function Home() {
             <div className="flex flex-col gap-6 items-start mt-4">
                 <button
                     onClick={() => { navigate("/public"); setIsMenuOpen(false); }}
-                    className="text-gradient-animated text-2xl font-bold tracking-widest hover:brightness-110 transition"
+                    className="text-gradient-animated text-2xl tracking-widest hover:brightness-110 transition"
                 >
                     PUBLIC
                 </button>
 
                 <button
                     onClick={() => { navigate("/bin"); setIsMenuOpen(false); }}
-                    className="text-white text-2xl font-bold tracking-widest hover:text-gray-300 transition"
+                    className="text-white text-2xl tracking-widest hover:text-gray-300 transition"
                 >
                     BIN
                 </button>
 
                 <button
                     onClick={() => { handleLogout(); setIsMenuOpen(false); }}
-                    className="text-white text-2xl font-bold tracking-widest hover:text-gray-300 transition"
+                    className="text-white text-2xl tracking-widest hover:text-gray-300 transition"
                 >
                     EXIT
                 </button>

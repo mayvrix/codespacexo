@@ -157,6 +157,156 @@ export default function Public() {
     }
   };
 
+  // --- CUSTOM SYNTAX HIGHLIGHTER ---
+  const renderHighlightedCode = (code, fileName) => {
+    if (!code) return "";
+    const ext = fileName.slice(fileName.lastIndexOf(".")).toLowerCase();
+    const lines = code.split("\n");
+
+    const isNumber = (str) => /^\d+$/.test(str);
+
+    return lines.map((line, lineIndex) => {
+      // --- PYTHON (.py) ---
+      if (ext === ".py") {
+        // Regex Priority: Comments (#.*) capture the REST of the line
+        const regex = /(#.*)|("[^"]*")|('[^']*')|([\(\)])|([\[\]\{\}])|([.,;])|([+\-*/%=<>!&|^~]+)|(\b\w+\b)|(\s+)/g;
+        const tokens = line.split(regex).filter((t) => t !== undefined && t !== "");
+
+        return (
+          <div key={lineIndex} className="min-h-[1.2em]">
+            {tokens.map((token, i) => {
+              // 1. Comments: Pure White (Absolute Priority)
+              if (token.startsWith("#")) {
+                return <span key={i} className="text-white">{token}</span>;
+              }
+              // 2. Strings: Neon Blue
+              if (token.startsWith('"') || token.startsWith("'")) {
+                return <span key={i} className="text-blue-300">{token}</span>;
+              }
+              // 3. Arguments (Parens): Red
+              if (token === "(" || token === ")") {
+                return <span key={i} className="text-red-500">{token}</span>;
+              }
+              // 4. Operators: Dark Green
+              if (/^[+\-*/%=<>!&|^~]+$/.test(token)) {
+                return <span key={i} className="text-green-600">{token}</span>;
+              }
+              
+              // 5. Keywords & Variables
+              if (/^\w+$/.test(token) && !isNumber(token)) {
+                 const pyKeywords = [
+                   "if", "elif", "else", "for", "while", "return", "def", "class", 
+                   "import", "from", "try", "except", "break", "continue", "pass", 
+                   "in", "is", "not", "and", "or", "with", "as", "global", "lambda"
+                 ];
+                 
+                 // Control Flow / Keywords: Dark Green
+                 if (pyKeywords.includes(token)) {
+                    return <span key={i} className="text-green-600">{token}</span>;
+                 }
+
+                 // Method Name Detection (Purple)
+                 let isMethod = false;
+                 for(let j=i+1; j < tokens.length; j++){
+                    if(tokens[j].trim() === "") continue; 
+                    if(tokens[j] === "(") isMethod = true;
+                    break;
+                 }
+                 if (isMethod) {
+                     return <span key={i} className="text-purple-500">{token}</span>;
+                 }
+
+                 // Variable Names: Cream
+                 return <span key={i} className="text-[#ffe4c4]">{token}</span>; 
+              }
+
+              // All other (Numbers, punctuation): Yellow
+              return <span key={i} className="text-yellow-300">{token}</span>;
+            })}
+          </div>
+        );
+      } 
+      
+      // --- JAVA / C++ / C (.java, .cpp, .c, .h) ---
+      else if ([".java", ".cpp", ".c", ".h", ".hpp", ".cc"].includes(ext)) {
+        // Regex Priority: Comments (//.*) capture the REST of the line
+        const regex = /(\/\/.*)|("[^"]*")|([\(\)])|([\[\]\{\}])|([.,;])|([+\-*/%=<>!&|^~]+)|(\b\w+\b)|(\s+)/g;
+        const tokens = line.split(regex).filter((t) => t !== undefined && t !== "");
+
+        return (
+          <div key={lineIndex} className="min-h-[1.2em]">
+            {tokens.map((token, i) => {
+              // 1. Comments: Pure White (Absolute Priority)
+              if (token.trim().startsWith("//")) {
+                return <span key={i} className="text-white">{token}</span>;
+              }
+              // 2. Strings: Neon Blue
+              if (token.startsWith('"')) {
+                return <span key={i} className="text-blue-300">{token}</span>;
+              }
+              // 3. Arguments (Parens): Red
+              if (token === "(" || token === ")") {
+                return <span key={i} className="text-red-500">{token}</span>;
+              }
+              // 4. Operators: Dark Green
+              if (/^[+\-*/%=<>!&|^~]+$/.test(token)) {
+                return <span key={i} className="text-green-600">{token}</span>;
+              }
+
+              // 5. Word Analysis
+              if (/^\w+$/.test(token) && !isNumber(token)) {
+                // Control Flow / Access Modifiers: Dark Green
+                const greenKeywords = [
+                    "if", "else", "for", "while", "do", "switch", "case", 
+                    "default", "break", "continue", "return", "catch", "try",
+                    "public", "private", "protected", "static", "class", 
+                    "struct", "namespace", "using", "include", "import", "void"
+                ];
+
+                if (greenKeywords.includes(token)) {
+                    return <span key={i} className="text-green-600">{token}</span>;
+                }
+
+                // Types: Pink
+                const types = [
+                  "int", "float", "double", "char", "long", "short", 
+                  "bool", "boolean", "String", "auto", "const", "final", 
+                  "unsigned", "signed"
+                ];
+
+                if (types.includes(token)) {
+                   return <span key={i} className="text-pink-500">{token}</span>;
+                }
+                
+                // Method Name Detection (Purple)
+                let isMethod = false;
+                for(let j=i+1; j < tokens.length; j++){
+                    if(tokens[j].trim() === "") continue; 
+                    if(tokens[j] === "(") isMethod = true;
+                    break;
+                }
+                if (isMethod) {
+                     return <span key={i} className="text-purple-500">{token}</span>;
+                }
+
+                // Variable Name: Cream Skin Color
+                return <span key={i} className="text-[#ffe4c4]">{token}</span>;
+              }
+
+              // All other (Numbers, punctuation, etc): Yellow
+              return <span key={i} className="text-yellow-300">{token}</span>;
+            })}
+          </div>
+        );
+      } 
+      
+      // --- DEFAULT (Other Languages) ---
+      else {
+        return <div key={lineIndex} className="text-white min-h-[1.2em]">{line}</div>;
+      }
+    });
+  };
+
   return (
     <div className="min-h-screen bg-black text-white font-press flex flex-col">
       <div className="flex justify-center items-center p-4 border-b border-white">
@@ -165,14 +315,12 @@ export default function Public() {
 
       <div className="flex flex-1 flex-col md:flex-row overflow-hidden">
         {/* --- PANEL 1: FILE LIST (LEFT) --- */}
-        {/* On mobile, this is hidden when previewFile is set. On desktop, it's always visible. */}
         <div
           className={`
             ${previewFile ? "hidden md:block" : "w-full"} 
             md:w-1/3 border-r border-white p-4 overflow-y-auto space-y-4 flex-shrink-0
           `}
         >
-          
           <button
             onClick={() => window.history.back()}
             className="bg-white text-black px-3 py-1 text-sm hover:bg-gray-300 mb-4"
@@ -206,7 +354,6 @@ export default function Public() {
         </div>
 
         {/* --- PANEL 2: PREVIEW (RIGHT) --- */}
-        {/* This panel only shows up if a file is selected */}
         {previewFile && (
           <div className="flex-1 flex flex-col p-4 overflow-hidden">
             <div className="flex flex-col items-start gap-3 mb-4 md:flex-row md:items-center md:justify-between">
@@ -220,7 +367,6 @@ export default function Public() {
                     setPreviewContent("");
                     setPreviewUrl("");
                   }}
-                  /* --- MODIFIED: Hide on desktop --- */
                   className="bg-white text-black px-3 py-1 text-sm hover:bg-gray-300 md:hidden"
                 >
                   Back
@@ -270,7 +416,7 @@ export default function Public() {
               ) : (
                 <div className="p-2 overflow-auto h-full">
                   <pre className="font-space !font-space whitespace-pre-wrap">
-                    {previewContent}
+                    {renderHighlightedCode(previewContent, previewFile.name)}
                   </pre>
                 </div>
               )}
@@ -279,7 +425,6 @@ export default function Public() {
         )}
 
         {/* --- PANEL 3: PLACEHOLDER (RIGHT) --- */}
-        {/* This shows on desktop when no file is selected */}
         {!previewFile && (
           <div className="hidden md:flex flex-1 items-center justify-center p-4">
             <p className="text-gray-500">Select a file to preview</p>
