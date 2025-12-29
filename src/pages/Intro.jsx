@@ -3,10 +3,10 @@ import { useNavigate } from "react-router-dom";
 import { onAuthStateChanged } from "firebase/auth";
 import { auth } from "../firebase"; // Ensure this path matches your project structure
 import TextPressure from "../comps/textPressure";
-import Shuffle from "../comps/shuffle";
+import ASCIIText from "../comps/asciitext";
 import Aurora from "../comps/aurora";
 import Logo from "../assets/xo.png";
-import IntroNext from "./IntroNext"; // ✅ Import the new component
+import IntroNext from "./IntroNext"; 
 
 export default function Intro() {
   const navigate = useNavigate();
@@ -23,7 +23,6 @@ export default function Intro() {
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, (user) => {
       if (user) {
-        // If user is already logged in, skip intro and go to home
         navigate("/home");
       }
     });
@@ -32,15 +31,14 @@ export default function Intro() {
 
   return (
     <>
-      {/* ✅ Intro section */}
+      {/* Intro section */}
       <div
         className="w-full h-screen bg-black relative overflow-hidden text-white"
         style={{
-          scrollbarWidth: "none", // Firefox
-          msOverflowStyle: "none", // IE/Edge
+          scrollbarWidth: "none",
+          msOverflowStyle: "none",
         }}
       >
-        {/* ✅ Hide scrollbars for WebKit */}
         <style>{`
           ::-webkit-scrollbar {
             display: none;
@@ -67,63 +65,23 @@ export default function Intro() {
             }}
           />
 
-          {/* Main text */}
+          {/* Main text area */}
           <div
             className="w-full flex flex-col items-center justify-center text-center px-6 md:px-0"
-            style={{
-              lineHeight: "1.1",
-            }}
+            style={{ lineHeight: "1.1" }}
           >
             {isMobile ? (
+              /* FIXED: Added explicit height and relative positioning for ASCII to hook into */
               <div
-                className="flex flex-col justify-center text-left"
+                className="relative w-full h-48 flex items-center justify-center"
                 style={{
-                  fontFamily: '"Press Start 2P", monospace',
-                  fontSize: "2.6rem",
-                  lineHeight: "0.85",
-                  textAlign: "left",
-                  transform: "scale(1.3)",
-                  gap: "0.6rem",
+                  transform: "scale(1.5)", 
                 }}
               >
-                <Shuffle
-                  text="CODE"
-                  shuffleDirection="right"
-                  duration={0.35}
-                  animationMode="evenodd"
-                  shuffleTimes={1}
-                  ease="power3.out"
-                  stagger={0.03}
-                  threshold={0.1}
-                  triggerOnce
-                  triggerOnHover
-                  respectReducedMotion
-                />
-                <Shuffle
-                  text="SPACE"
-                  shuffleDirection="left"
-                  duration={0.35}
-                  animationMode="evenodd"
-                  shuffleTimes={1}
-                  ease="power3.out"
-                  stagger={0.03}
-                  threshold={0.1}
-                  triggerOnce
-                  triggerOnHover
-                  respectReducedMotion
-                />
-                <Shuffle
-                  text="XO"
-                  shuffleDirection="right"
-                  duration={0.35}
-                  animationMode="evenodd"
-                  shuffleTimes={1}
-                  ease="power3.out"
-                  stagger={0.03}
-                  threshold={0.1}
-                  triggerOnce
-                  triggerOnHover
-                  respectReducedMotion
+                <ASCIIText
+                  text="CSXO"
+                  enableWaves={false}
+                  asciiFontSize={8}
                 />
               </div>
             ) : (
@@ -153,7 +111,7 @@ export default function Intro() {
         </div>
       </div>
 
-      {/* ✅ Second section */}
+      {/* Second section */}
       <IntroNext />
     </>
   );

@@ -8,6 +8,9 @@ export default {
         doto: ['"Doto"', "sans-serif"],
         jetbrains: ['"JetBrains Mono"', "monospace"],
         space: ['"Space Mono"', "monospace"],
+        sixcaps: ['"Six Caps"', 'sans-serif'],
+        oranienbaum: ['"Oranienbaum"', 'serif'],
+
       },
     },
   },
