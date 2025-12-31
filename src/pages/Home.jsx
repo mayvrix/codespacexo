@@ -2,6 +2,7 @@ import { useEffect, useState, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import { auth, db } from "../firebase";
 import { supabase } from "../supabase";
+import { themes } from "./themes";
 import {
   doc,
   setDoc,
@@ -12,11 +13,14 @@ import {
   query,
   where,
   writeBatch,
+  updateDoc
 } from "firebase/firestore";
 import JSZip from "jszip";
 import { saveAs } from "file-saver";
 
 // import icons
+import BackLeftIcon from "../assets/backLeft.svg";
+import UserIcon from "../assets/user.svg";
 import FolderIcon from "../assets/folder.svg";
 import DownloadIcon from "../assets/download.svg";
 import DeleteIcon from "../assets/delete.svg";
@@ -28,6 +32,8 @@ import AddNoteIcon from '../assets/addNote.svg';
 import AddFileIcon from '../assets/addFile.svg';
 import CopyIcon from '../assets/copy.svg';
 import RenameIcon from '../assets/addNote.svg';
+import EditIcon from '../assets/edit.svg';
+import XOIcon from '../assets/xoMod.png';
 
 // --- ADDED FOR DATE SORTING ---
 const monthMap = {
@@ -73,6 +79,14 @@ const parseDateFromName = (name) => {
 
 
 export default function Home() {
+  const [currentTheme, setCurrentTheme] = useState(themes[0]); // Default theme
+
+  // --- INTRO / SPLASH SCREEN STATE ---
+  const [showIntro, setShowIntro] = useState(true); // Is the intro visible?
+  const [introOpacity, setIntroOpacity] = useState(1); // For the fade-out effect
+  const [introName, setIntroName] = useState(""); // To store "Tanmay"
+  const [splashProgress, setSplashProgress] = useState(0); // NEW: For the progress bar
+
   const [files, setFiles] = useState([]);
   const [folders, setFolders] = useState([]);
   const [currentFolder, setCurrentFolder] = useState(""); // empty = root
@@ -87,6 +101,14 @@ export default function Home() {
   const [starred, setStarred] = useState({});
   const [snackbar, setSnackbar] = useState({ message: "", show: false });
   const navigate = useNavigate();
+  // --- REPLACEMENT FOR OLD SNACKBAR & NEW PROGRESS STATE ---
+  const [toasts, setToasts] = useState([]); // Stores multiple notifications
+  // activeProgress example: { type: 'Upload', current: 5, total: 10, label: 'Uploading files...' }
+  const [activeProgress, setActiveProgress] = useState(null); 
+
+  // Helper to determine icon color based on theme (0-8 are Dark, 9+ are Light)
+  const isDarkTheme = currentTheme.id < 9;
+  const iconFilter = isDarkTheme ? 'invert(1)' : 'none';
 
   const [isUploading, setIsUploading] = useState(false);
   const [uploadProgress, setUploadProgress] = useState({ total: 0, completed: 0 });
@@ -120,7 +142,272 @@ export default function Home() {
   const longPressTriggeredRef = useRef(false);
   const fileInputRef = useRef(null);
 
-  const [isMenuOpen, setIsMenuOpen] = useState(false);
+// --- NEW STATE FOR SELECTION & WINDOW ---
+  const [windows, setWindows] = useState([]);
+  const [zCounter, setZCounter] = useState(100); 
+  const [activeDrag, setActiveDrag] = useState(null); 
+  const [isMenuOpen, setIsMenuOpen] = useState(false); 
+  
+  // New State for View Mode
+  const [viewMode, setViewMode] = useState('grid'); // 'grid' | 'list'
+
+  // Refs
+  const containerRef = useRef(null);
+
+  // --- WINDOW MANAGEMENT ---
+  
+  const focusWindow = (id) => {
+    setZCounter(prev => prev + 1);
+    setWindows(prev => prev.map(w => w.id === id ? { ...w, zIndex: zCounter + 1 } : w));
+    setContextMenu(null);
+    setFolderContextMenu(null);
+    setFileContextMenu(null);
+  };
+
+  // OPEN FILE
+  const openFile = async (file) => {
+    setContextMenu(null);
+    setFolderContextMenu(null);
+    setFileContextMenu(null);
+
+    const existing = windows.find(w => w.file.fullPath === file.fullPath);
+    if (existing) {
+        focusWindow(existing.id);
+        return;
+    }
+
+    const docId = btoa(file.fullPath);
+    const newZ = zCounter + 1;
+    setZCounter(newZ);
+
+    // --- MOBILE DETECTION LOGIC ---
+    // If mobile, force full screen and locked position
+    const isMobile = window.innerWidth < 768;
+
+    const newWindow = {
+        id: docId,
+        file: file,
+        x: isMobile ? 0 : 50 + (windows.length * 30),
+        y: isMobile ? 0 : 50 + (windows.length * 30),
+        w: isMobile ? '100%' : 600, 
+        h: isMobile ? '100%' : 400,
+        isMaximized: isMobile, // Force maximize on start for mobile
+        isMobileMode: isMobile, // Flag to disable window controls
+        zIndex: newZ,
+        content: "Loading...",
+        url: null
+    };
+
+    setWindows(prev => [...prev, newWindow]);
+
+    // Fetch Content
+    const ext = file.name.slice(file.name.lastIndexOf(".")).toLowerCase();
+    let content = "";
+    let url = null;
+
+    if (['.png', '.jpeg', '.jpg', '.svg', '.gif', '.pdf'].includes(ext)) {
+        const { data } = supabase.storage.from("files").getPublicUrl(file.fullPath);
+        url = data.publicUrl;
+    } else {
+        try {
+            const { data, error } = await supabase.storage.from("files").download(file.fullPath);
+            if (!error && data) {
+                content = await data.text();
+            } else {
+                content = "Error loading content.";
+            }
+        } catch (e) {
+            content = "Error loading content.";
+        }
+    }
+
+    setWindows(prev => prev.map(w => w.id === docId ? { ...w, content, url } : w));
+  };
+
+  const closeWindow = (id) => {
+    setWindows(prev => prev.filter(w => w.id !== id));
+  };
+
+  const toggleMaximize = (id) => {
+    // Prevent un-maximizing on mobile
+    if (window.innerWidth < 768) return; 
+    setWindows(prev => prev.map(w => w.id === id ? { ...w, isMaximized: !w.isMaximized } : w));
+  };
+
+  // --- MOUSE HANDLERS ---
+
+  const handleMouseDown = (e, windowId, type) => {
+    e.stopPropagation();
+    e.preventDefault();
+    
+    // --- DISABLE DRAG/RESIZE ON MOBILE ---
+    if (window.innerWidth < 768) return;
+
+    setContextMenu(null);
+    setFolderContextMenu(null);
+    setFileContextMenu(null);
+    focusWindow(windowId);
+    
+    const targetWindow = windows.find(w => w.id === windowId);
+    if (!targetWindow) return;
+
+    setActiveDrag({
+        type: type,
+        id: windowId,
+        startX: e.clientX,
+        startY: e.clientY,
+        initX: targetWindow.x,
+        initY: targetWindow.y,
+        initW: targetWindow.w,
+        initH: targetWindow.h
+    });
+  };
+
+  const handleMouseMove = (e) => {
+    if (!activeDrag) return;
+    e.preventDefault();
+
+    const container = containerRef.current;
+    if (!container) return;
+    const bounds = container.getBoundingClientRect();
+
+    const dx = e.clientX - activeDrag.startX;
+    const dy = e.clientY - activeDrag.startY;
+
+    setWindows(prev => prev.map(w => {
+        if (w.id !== activeDrag.id) return w;
+        if (w.isMaximized) return w;
+
+        if (activeDrag.type === 'move') {
+            let newX = activeDrag.initX + dx;
+            let newY = activeDrag.initY + dy;
+
+            if (newX < 0) newX = 0;
+            if (newY < 0) newY = 0;
+            if (newX + w.w > bounds.width) newX = bounds.width - w.w;
+            if (newY + w.h > bounds.height) newY = bounds.height - w.h;
+
+            return { ...w, x: newX, y: newY };
+        } 
+        else if (activeDrag.type === 'resize') {
+            let newW = Math.max(300, activeDrag.initW + dx);
+            let newH = Math.max(200, activeDrag.initH + dy);
+
+            if (w.x + newW > bounds.width) newW = bounds.width - w.x;
+            if (w.y + newH > bounds.height) newH = bounds.height - w.y;
+
+            return { ...w, w: newW, h: newH };
+        }
+        return w;
+    }));
+  };
+
+  const handleMouseUp = () => {
+    setActiveDrag(null);
+  };
+
+  // This replaces your old showSnackbar so you don't have to change logic elsewhere
+  const showSnackbar = (message) => {
+    const id = Date.now();
+    setToasts((prev) => [...prev, { id, message }]);
+    // Auto remove after 3 seconds
+    setTimeout(() => {
+      setToasts((prev) => prev.filter((t) => t.id !== id));
+    }, 3000);
+  };
+
+  // Helper to remove a specific toast manually (optional)
+  const removeToast = (id) => {
+    setToasts((prev) => prev.filter((t) => t.id !== id));
+  };
+
+  // --- SYNC EXISTING LOADING STATES TO PROGRESS BAR ---
+  // This effect listens to your existing upload/delete/download states 
+  // and updates the bottom-left progress bar automatically.
+  useEffect(() => {
+    if (isUploading) {
+        setActiveProgress({ 
+            type: 'Upload', 
+            current: uploadProgress.completed, 
+            total: uploadProgress.total, 
+            label: `Uploading ${uploadProgress.completed}/${uploadProgress.total}` 
+        });
+    } else if (isDownloading) {
+        setActiveProgress({ 
+            type: 'Download', 
+            current: downloadProgress.completed, 
+            total: downloadProgress.total, 
+            label: `Downloading ${downloadProgress.completed}/${downloadProgress.total}` 
+        });
+    } else if (isDeleting) {
+        setActiveProgress({ 
+            type: 'Delete', 
+            current: deleteProgress.completed, 
+            total: deleteProgress.total, 
+            label: `Deleting ${deleteProgress.completed}/${deleteProgress.total}` 
+        });
+    } else {
+        setActiveProgress(null);
+    }
+  }, [isUploading, uploadProgress, isDownloading, downloadProgress, isDeleting, deleteProgress]);
+
+  // --- HANDLE LAYOUT CHANGE & SAVE ---
+  const changeViewMode = async (mode) => {
+    setViewMode(mode); // Update UI immediately
+    if (user) {
+      try {
+        // Save to Firestore users collection
+        const docRef = doc(db, "users", user.uid);
+        // Using setDoc with merge ensures it works even if the user doc doesn't exist yet
+        await setDoc(docRef, { layout: mode }, { merge: true }); 
+      } catch (error) {
+        console.error("Failed to save layout preference:", error);
+      }
+    }
+  };
+
+ useEffect(() => {
+  if (user) {
+    const fetchTheme = async () => {
+        const docRef = doc(db, "users", user.uid);
+        const docSnap = await getDoc(docRef);
+        if (docSnap.exists()) {
+            const data = docSnap.data();
+            if (data.theme !== undefined && themes[data.theme]) {
+                setCurrentTheme(themes[data.theme]);
+            }
+            // (Optional) Restore layout preference here too if you want
+            if (data.layout) {
+                 setViewMode(data.layout);
+            }
+        }
+        
+        // --- ADD THIS TO FIX THE STUCK SPLASH SCREEN ---
+        setTimeout(() => {
+            setIntroOpacity(0); // Fade out
+            setTimeout(() => setShowIntro(false), 500); // Remove from DOM
+        }, 1000);
+    };
+    fetchTheme();
+  }
+}, [user]);
+
+  // --- NEW: ANIMATE SPLASH PROGRESS BAR ---
+  useEffect(() => {
+    if (showIntro) {
+      const interval = setInterval(() => {
+        setSplashProgress(prev => {
+          if (prev >= 100) {
+            clearInterval(interval);
+            return 100;
+          }
+          return prev + 1.5; // Adjust speed: higher number = faster
+        });
+      }, 20); // Runs every 20ms
+
+      return () => clearInterval(interval);
+    }
+  }, [showIntro]);
   
   useEffect(() => {
     const unsubscribe = auth.onAuthStateChanged((u) => {
@@ -141,12 +428,6 @@ export default function Home() {
     };
   }, []);
 
-  const showSnackbar = (message) => {
-    setSnackbar({ message, show: true });
-    setTimeout(() => {
-      setSnackbar({ message: "", show: false });
-    }, 3000);
-  };
 
   const fetchData = async () => {
     if (!user) return;
@@ -1194,654 +1475,691 @@ export default function Home() {
         setIsDownloading(false);
     }
   };
+useEffect(() => {
+  if (user) {
+    const fetchTheme = async () => {
+        const docRef = doc(db, "users", user.uid);
+        const docSnap = await getDoc(docRef);
+        if (docSnap.exists()) {
+            const data = docSnap.data();
+            if (data.theme !== undefined && themes[data.theme]) {
+                setCurrentTheme(themes[data.theme]);
+            }
+        }
+    };
+    fetchTheme();
+  }
+}, [user]);
 
+const handleDownloadFile = async (file) => {
+    setFileContextMenu(null); // Close menu
+    setIsDownloading(true);
+    showSnackbar(`Downloading "${file.name}"...`);
+
+    try {
+      // Download data as a Blob from Supabase using auth
+      const { data, error } = await supabase.storage
+        .from("files")
+        .download(file.fullPath);
+
+      if (error) throw error;
+
+      // Use file-saver to save the Blob
+      saveAs(data, file.name);
+      showSnackbar("Download complete!");
+    } catch (error) {
+      console.error("Download failed:", error);
+      showSnackbar("Error downloading file.");
+    } finally {
+      setIsDownloading(false);
+    }
+  };
 
   // ++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
   
-  return (
-    <div className="min-h-screen bg-black text-white font-press flex flex-col relative">
-      {/* --- STYLES: Scrollbar Hiding + Animated Gradient --- */}
+return (
+    <div 
+      className="min-h-screen font-press flex flex-col p-4 md:p-6 overflow-hidden select-none transition-colors duration-300"
+      style={{ backgroundColor: currentTheme.bg, color: currentTheme.text }}
+      onMouseMove={handleMouseMove}
+      onMouseUp={handleMouseUp}
+      onMouseLeave={handleMouseUp}
+      onClick={() => {
+        setContextMenu(null);
+        setFolderContextMenu(null);
+        setFileContextMenu(null);
+      }}
+    >
       <style>
         {`
-          .no-scrollbar::-webkit-scrollbar {
-            display: none;
-          }
-          .no-scrollbar {
-            -ms-overflow-style: none;
-            scrollbar-width: none;
-          }
-          @keyframes gradient-xy {
-            0%, 100% { background-position: 0% 50%; }
-            50% { background-position: 100% 50%; }
-          }
-          /* Text Gradient (For Desktop Header & Mobile Public) */
-          .text-gradient-animated {
-            background: linear-gradient(270deg, #86efac, #c084fc, #fca5a5);
-            background-size: 200% 200%;
-            -webkit-background-clip: text;
-            background-clip: text;
-            color: transparent;
-            animation: gradient-xy 6s ease infinite;
+          .font-press { font-family: 'Press Start 2P', monospace; }
+          ::-webkit-scrollbar { width: 8px; height: 8px; }
+          ::-webkit-scrollbar-track { background: ${currentTheme.container}; border-radius: 4px; }
+          ::-webkit-scrollbar-thumb { background: #333; border-radius: 4px; }
+          ::-webkit-scrollbar-thumb:hover { background: #555; }
+          @keyframes fade-in { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+          .animate-fade-in { animation: fade-in 0.3s ease-out forwards; }
+          
+          .action-btn:hover::after {
+             content: attr(data-tooltip);
+             position: absolute;
+             bottom: 100%;
+             left: 50%;
+             transform: translateX(-50%);
+             background: #333;
+             color: white;
+             padding: 4px 8px;
+             border-radius: 4px;
+             font-size: 10px;
+             white-space: nowrap;
+             pointer-events: none;
+             margin-bottom: 5px;
+             border: 1px solid #555;
+             z-index: 100;
           }
         `}
       </style>
-
-      <input
-        type="file"
-        ref={fileInputRef}
-        onChange={handleFileSelectChange}
-        className="hidden"
-        multiple
-      />
+      {/* --- INTRO / SPLASH SCREEN --- */}
+      {showIntro && (
+        <div 
+            className="fixed inset-0 z-[9999] flex flex-col items-center justify-center bg-black transition-opacity duration-500 ease-in-out"
+            style={{ opacity: introOpacity }}
+        >
+            {/* Logo */}
+            <img 
+              src={XOIcon} 
+              alt="CODESPACEXO" 
+              className="w-32 md:w-48 h-auto mb-8 animate-fade-in"
+            />
+            
+            {/* Progress Bar Container */}
+            <div className="w-48 md:w-64 h-1.5 bg-gray-800 rounded-full overflow-hidden animate-fade-in">
+              {/* Progress Bar Filler */}
+              <div 
+                className="h-full bg-pink-600 transition-all duration-75 ease-linear" 
+                style={{ width: `${splashProgress}%` }}
+              ></div>
+            </div>
+        </div>
+      )}
 
       {/* --- HEADER --- */}
-      <div className="flex justify-between items-center p-4 border-b border-white bg-black z-30 relative">
-        <h1 className="text-2xl">
-          {/* Mobile Title */}
-          <span className="md:hidden">CSXO</span>
-          {/* Desktop Title */}
-          <span className="max-md:hidden">CODESPACEXO</span>
-        </h1>
+      <div className="flex justify-between items-center mb-6 z-40 relative">
         
-        {/* --- DESKTOP MENU (Text Only with Pipes) --- */}
-        <div className="flex items-center gap-4 max-md:hidden">
-            <button
-                onClick={() => navigate("/public")}
-                className="text-gradient-animated text-lg font hover:brightness-110 transition tracking-widest"
+        {/* Logo Section */}
+        <h1 className="text-xl md:text-3xl tracking-widest cursor-pointer font-bold" style={{ color: currentTheme.accent }} onClick={() => navigate("/")}>
+          {/* Mobile Logo */}
+        <img 
+        src={XOIcon} 
+        alt="XO" 
+        className="md:hidden h-14 w-auto" 
+        style={{ filter: isDarkTheme ? 'none' : 'invert(1)' }} 
+        />          {/* Desktop Text */}
+          <span className="hidden md:inline">CODESPACEXO</span>
+        </h1>
+
+        {/* Desktop Menu - Profile + Pills */}
+        <div className="hidden md:flex items-center gap-4">
+          
+          {/* Profile Button */}
+          <button 
+            onClick={() => navigate("/control")} 
+            className="w-14 h-14 rounded-full flex items-center justify-center border border-transparent hover:opacity-80 transition" 
+            style={{ backgroundColor: currentTheme.panel }}
+          >
+             <img src={UserIcon} className="w-6 h-6" style={{ filter: iconFilter }} alt="profile" />
+          </button>
+
+         {/* Animated Gradient Wrapper */}
+<div className="animated-gradient-border rounded-full p-[2px]">
+  <button 
+    onClick={() => navigate("/public")} 
+    className="px-6 py-4 rounded-full transition text-xs tracking-widest font-bold hover:opacity-80 h-full w-full" 
+    style={{ backgroundColor: currentTheme.panel, color: currentTheme.text }}
+  >
+    PUBLIC
+  </button>
+</div>
+          <button 
+            onClick={() => navigate("/bin")} 
+            className="px-6 py-4 rounded-full border border-transparent transition text-xs tracking-widest font-bold hover:bg-opacity-80" 
+            style={{ backgroundColor: currentTheme.panel, color: currentTheme.text }}
+          >
+            BIN
+          </button>
+          <button 
+            onClick={handleLogout} 
+            className="px-6 py-4 rounded-full border border-transparent hover:border-red-500 hover:text-red-400 transition text-xs tracking-widest font-bold" 
+            style={{ backgroundColor: currentTheme.panel, color: currentTheme.text }}
+          >
+            EXIT
+          </button>
+        </div>
+
+        {/* Mobile Right Side Group */}
+        <div className="flex md:hidden gap-3">
+            {/* Mobile Profile Button */}
+            <button 
+                onClick={() => navigate("/control")}
+                className="px-4 py-4 rounded-full hover:opacity-80 transition flex items-center justify-center" 
+                style={{ backgroundColor: currentTheme.panel }}
             >
-                PUBLIC
+                <img src={UserIcon} className="w-6 h-6" style={{ filter: iconFilter }} alt="profile" />
             </button>
 
-            <span className="text-white text-3xl font-space">|</span>
-
-            <button
-                onClick={() => navigate("/bin")}
-                className="text-white text-lg hover:text-gray-300 transition tracking-widest"
-                title="Recycle Bin"
+            {/* Mobile Hamburger */}
+            <button 
+                className="px-4 py-4 rounded-full hover:opacity-80 transition" 
+                style={{ backgroundColor: currentTheme.panel, color: currentTheme.text }} 
+                onClick={(e) => { e.stopPropagation(); setIsMenuOpen(!isMenuOpen); }}
             >
-                BIN
-            </button>
-
-            <span className="text-white text-3xl font-space">|</span>
-
-            <button
-                onClick={handleLogout}
-                className="text-white text-lg hover:text-gray-300 transition tracking-widest"
-            >
-                EXIT
+                 <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-6 h-6">
+                   <path strokeLinecap="round" strokeLinejoin="round" d="M3.75 6.75h16.5M3.75 12h16.5m-16.5 5.25h16.5" />
+                 </svg>
             </button>
         </div>
 
-        {/* --- MOBILE HAMBURGER BUTTON --- */}
+        {isMenuOpen && (
+  <>
+    {/* Backdrop */}
+    <div 
+      className="fixed inset-0 bg-black/50 z-40 md:hidden" 
+      onClick={() => setIsMenuOpen(false)}
+    />
+    
+    {/* Sidebar */}
+    <div 
+      className="fixed inset-y-0 right-0 w-64 z-50 flex flex-col items-center py-12 md:hidden shadow-2xl transition-transform duration-300 ease-out"
+      style={{ backgroundColor: currentTheme.panel, borderLeft: `1px solid ${currentTheme.border}` }}
+    >
+      {/* Title */}
+      <h2 className="text-2xl tracking-widest mb-auto" style={{ color: currentTheme.text }}>CSXO</h2>
+
+      {/* Buttons Container */}
+      <div className="flex flex-col gap-4 w-full px-8 pb-8">
+        
+        {/* Public Button (Gradient Border) */}
+        <div className="animated-gradient-border rounded-full p-[2px] w-full">
+          <button 
+            onClick={() => { navigate("/public"); setIsMenuOpen(false); }}
+            className="w-full py-4 rounded-full font-bold tracking-widest text-sm hover:opacity-80 transition"
+            style={{ backgroundColor: currentTheme.panel, color: currentTheme.text }}
+          >
+            Public
+          </button>
+        </div>
+
+        {/* Bin Button */}
         <button 
-          className="md:hidden text-white p-1"
-          onClick={() => setIsMenuOpen(true)}
+          onClick={() => { navigate("/bin"); setIsMenuOpen(false); }}
+          className="w-full py-4 rounded-full border font-bold tracking-widest text-sm hover:bg-white/10 transition"
+          style={{ borderColor: currentTheme.text, color: currentTheme.text }}
         >
-          <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={2.5} stroke="currentColor" className="w-8 h-8">
-            <path strokeLinecap="round" strokeLinejoin="round" d="M3.75 6.75h16.5M3.75 12h16.5m-16.5 5.25h16.5" />
-          </svg>
+          Bin
         </button>
+
+        {/* Exit Button */}
+        <button 
+          onClick={handleLogout}
+          className="w-full py-4 rounded-full border font-bold tracking-widest text-sm hover:bg-red-500/20 transition"
+          style={{ borderColor: currentTheme.text, color: currentTheme.text }}
+        >
+          Exit
+        </button>
+
+      </div>
+    </div>
+  </>
+)}
       </div>
 
-      {/* --- MOBILE RIGHT DRAWER (Fonts Only, No Boxes) --- */}
-      {isMenuOpen && (
-        <div className="fixed inset-0 z-50 flex justify-end md:hidden">
-          {/* Backdrop */}
-          <div 
-            className="absolute inset-0 bg-black/60 backdrop-blur-sm"
-            onClick={() => setIsMenuOpen(false)}
-          ></div>
-
-          {/* Drawer Content */}
-          <div className="relative z-10 w-64 bg-black border-l-2 border-white h-full p-6 flex flex-col gap-8 shadow-2xl animate-in slide-in-from-right duration-300">
-            
-            {/* Header / Close */}
-            <div className="flex justify-between items-center border-b border-white pb-4">
-              <span className="text-2xl">MENU</span>
-              <button onClick={() => setIsMenuOpen(false)}>
-                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-8 h-8 hover:text-red-500">
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
-                </svg>
-              </button>
-            </div>
-
-            {/* Menu Items: Just Fonts, Stacked Vertical */}
-            <div className="flex flex-col gap-6 items-start mt-4">
-                <button
-                    onClick={() => { navigate("/public"); setIsMenuOpen(false); }}
-                    className="text-gradient-animated text-2xl tracking-widest hover:brightness-110 transition"
-                >
-                    PUBLIC
-                </button>
-
-                <button
-                    onClick={() => { navigate("/bin"); setIsMenuOpen(false); }}
-                    className="text-white text-2xl tracking-widest hover:text-gray-300 transition"
-                >
-                    BIN
-                </button>
-
-                <button
-                    onClick={() => { handleLogout(); setIsMenuOpen(false); }}
-                    className="text-white text-2xl tracking-widest hover:text-gray-300 transition"
-                >
-                    EXIT
-                </button>
-            </div>
-
-          </div>
-        </div>
-      )}
-    
-
-
-      <div
-        className={`flex-1 flex flex-col md:flex-row transition overflow-hidden ${
-          dragging ? "bg-gray-800 border-4 border-dashed border-white" : ""
-        }`}
-        onDragOver={(e) => { e.preventDefault(); setDragging(true); }}
-        onDragLeave={() => setDragging(false)}
-        onDrop={handleDrop}
-        onContextMenu={(e) => { e.preventDefault(); setFolderContextMenu(null); setContextMenu({ x: e.pageX, y: e.pageY }); }}
-        onClick={() => { setContextMenu(null); setFolderContextMenu(null); }}
+      {/* --- MAIN OS CONTAINER --- */}
+      <div 
+        ref={containerRef}
+        className="os-container flex-1 border rounded-[20px] relative overflow-hidden os-bg-layer"
+        style={{ backgroundColor: currentTheme.container, borderColor: currentTheme.border }}
+        onDragOver={(e) => { e.preventDefault(); e.stopPropagation(); setDragging(true); }}
+        onDragEnter={(e) => { e.preventDefault(); e.stopPropagation(); setDragging(true); }}
+        onDragLeave={(e) => { 
+             e.preventDefault(); e.stopPropagation();
+             if (e.currentTarget.contains(e.relatedTarget)) return;
+             setDragging(false); 
+        }}
+        onDrop={(e) => {
+            e.preventDefault(); e.stopPropagation();
+            setDragging(false);
+            handleDrop(e);
+        }}
+        onContextMenu={(e) => { 
+          e.preventDefault(); 
+          if(e.target === e.currentTarget || e.target.classList.contains('os-bg-layer')) { 
+             setFolderContextMenu(null); 
+             setFileContextMenu(null);
+             setContextMenu({ x: e.pageX, y: e.pageY }); 
+          }
+        }}
+        onClick={(e) => {
+            if(e.target === e.currentTarget || e.target.classList.contains('os-bg-layer')) {
+               setContextMenu(null);
+               setFolderContextMenu(null);
+               setFileContextMenu(null);
+            }
+        }}
       >
-        <div className="md:w-1/3 border-r border-white p-4 space-y-3 overflow-y-auto">
-          {currentFolder && (
-            <div
-              className="flex items-center justify-center border-2 border-white text-white font-bold py-2 cursor-pointer hover:bg-gray-900"
-              onClick={handleBack}
-            >
-              ◀ Back
-            </div>
-          )}
-          {folders.map((folder) => (
-            <div
-              key={folder.name}
-              className="flex items-center justify-center border-2 border-white text-white font-bold py-2 cursor-pointer hover:bg-gray-900"
-              onClick={() => {
-                if (longPressTriggeredRef.current) return;
-                setCurrentFolder(currentFolder ? currentFolder + "/" + folder.name : folder.name);
-              }}
-              onTouchStart={(e) => handleTouchStart(e, folder)}
-              onTouchEnd={handleTouchEnd}
-              onContextMenu={(e) => { 
-                e.stopPropagation(); 
-                e.preventDefault(); 
-                setContextMenu(null);
-                setFolderContextMenu({ x: e.pageX, y: e.pageY, folder }); 
-              }}
-            >
-              <img src={FolderIcon} alt="folder" className="w-5 h-5 mr-3 filter invert" />
-              {folder.name}
-            </div>
-          ))}
-        </div>
+        
+        {dragging && (
+          <div className="absolute inset-0 bg-opacity-10 z-[200] flex items-center justify-center border-4 border-dashed rounded-[30px] pointer-events-none" style={{ backgroundColor: `${currentTheme.accent}20`, borderColor: currentTheme.accent }}>
+            <p className="animate-pulse text-xl" style={{ color: currentTheme.accent }}>DROP FILES HERE</p>
+          </div>
+        )}
 
-        <div 
-          className={`flex-1 p-4 space-y-2 ${
-            previewFile ? 'overflow-hidden' : 'overflow-y-auto'
-          }`}
-        >
-          {previewFile ? (
-            <div className="flex flex-col h-full">
-             <div className="flex items-center justify-between border-b border-white pb-2 mb-2">
-  <button
-    onClick={() => { 
-      setPreviewFile(null); 
-      setPreviewContent("");
-      setPreviewUrl("");
-    }}
-    className="flex items-center bg-white text-black px-2 py-1 text-sm hover:bg-gray-200 flex-shrink-0"
-  >
-    <img src={BackIcon} alt="back" className="w-4 h-4 mr-1" />
-    Back
-  </button>
-  <span className="ml-2 font-bold truncate flex-1 min-w-0 text-right"> {previewFile.name} </span>
-</div>
-              
-             {/* --- MODIFIED PREVIEW AREA --- */}
-{/* --- REPLACEMENT: Preview area that fits on mobile with internal X/Y scroll --- */}
-<div className="flex-1 border border-white text-sm bg-neutral-900 
-                max-h-[70vh] md:max-h-[80vh] overflow-auto 
-                no-scrollbar [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none]">
-  {previewUrl.endsWith(".pdf") ? (
-    <div className="w-full h-full p-2 flex justify-center items-start overflow-auto 
-                   no-scrollbar [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none]">
-      {/* iframe constrained so it won't push the page height; inner container scrolls if needed */}
-      <iframe
-        src={previewUrl}
-        title={previewFile.name}
-        className="w-full"
-        style={{ border: "none", minHeight: "80vh", maxHeight: "80vh" }}
-      />
-    </div>
-  ) : (previewUrl.endsWith('.png') || previewUrl.endsWith('.jpeg') || previewUrl.endsWith('.svg') || previewUrl.endsWith('.jpg')) ? (
-    <div className="w-full h-full flex items-center justify-center p-2 overflow-auto 
-                   no-scrollbar [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none]">
-      {/* image limited to max height inside preview container so it won't force page scroll */}
-      <img
-        src={previewUrl}
-        alt={previewFile.name}
-        className="max-w-full max-h-[65vh] object-contain"
-      />
-    </div>
-  ) : (
-    // code / text preview — allow both horizontal and vertical scrolling inside this box
-    <div className="w-full h-full overflow-auto p-2 
-                   no-scrollbar [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none]">
-      <pre className="whitespace-pre font-mono text-sm break-words overflow-auto 
-                     no-scrollbar [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none]">
-        {previewContent}
-      </pre>
-    </div>
-  )}
-</div>
-{/* --------------------------- */}
-
-              {/* --------------------------- */}
-
-            </div>
-          ) : loading ? (
-            <p>Loading...</p>
-          ) : files.length === 0 && folders.length === 0 ? (
-            <p>Drag & drop or right-click to add content.</p>
-          ) : files.length === 0 ? (
-            <p>No files here. Drag & drop to upload.</p>
-          ) : (
-            files.map((file) => {
-              const publicUrl = supabase.storage.from("files").getPublicUrl(file.fullPath).data.publicUrl;
-              {/* --- ADDED UNIQUE ID FOR STARRING --- */}
-              const docId = btoa(file.fullPath);
-              return (
-                <div
-  key={file.id || file.name} // Use file.id which is the docId
-  className="flex justify-between items-center bg-white text-black px-0 py-0 cursor-pointer"
-  onClick={() => {
-    setFileContextMenu(null);
-    setFolderContextMenu(null);
-    handlePreviewFile(file);
-  }}
-  onContextMenu={(e) => {
-    e.stopPropagation();
-    e.preventDefault();
-    setContextMenu(null);
-    setFolderContextMenu(null);
-    setFileContextMenu({ x: e.pageX, y: e.pageY, file: file });
-  }}
->
-                  {/* FILES VIEW */}
-                  <span className="truncate px-3 py-2 min-w-0 flex-1">{file.name}</span>
-                  <div className="flex flex-shrink-0" onClick={(e) => e.stopPropagation()} >
-                    <button onClick={() => requestDeleteFile(file)} className="px-3 py-2 hover:bg-red-600" title="Delete File" >
-                      <img src={DeleteIcon} alt="delete" className="w-5 h-5" />
-                    </button>
-                    {/* --- MODIFIED STAR BUTTON TO USE UNIQUE ID --- */}
-                    <button 
-                        onClick={() => handleStarFile(file)} 
-                        className="px-3 py-2 hover:bg-yellow-600" 
-                        title={ starred[docId] ? "Make Private" : "Make Public (24h)" } 
-                    >
-                      <img src={starred[docId] ? StarOnIcon : StarOffIcon} alt="star" className="w-5 h-5 transition" />
-                    </button>
-                    {/* --- END MODIFIED --- */}
-                    
-                    {file.isClipboard ? (
-  <button
-    onClick={() => handleCopyContent(file)}
-    className="px-3 py-2 hover:bg-blue-200"
-    title="Copy Content"
-  >
-    <img src={CopyIcon} alt="Copy content" className="w-5 h-5" />
-  </button>
-) : (
-  <a
-    href={publicUrl}
-    target="_blank"
-    rel="noreferrer"
-    className="px-3 py-2 hover:bg-gray-200"
-    title="Download File"
-  >
-    <img src={DownloadIcon} alt="download" className="w-5 h-5" />
-  </a>
+        {/* --- CONTENT AREA (Grid vs List) --- */}
+<div className="absolute inset-0 p-6 overflow-auto z-10 os-bg-layer">            
+            {/* Back Button */}
+{currentFolder && (
+  <div className="mb-4">
+      <div 
+        onClick={(e) => { e.stopPropagation(); handleBack(); }}
+        // Changed classes: Added 'justify-center', increased padding (px-6 py-2) for pill shape
+        className="inline-flex items-center justify-center px-8 py-3 rounded-full cursor-pointer transition hover:opacity-80 group border"
+        style={{ 
+            backgroundColor: currentTheme.border, // Background matches theme
+            borderColor: currentTheme.border     // Border matches theme
+        }}
+      >
+        <img 
+          src={BackLeftIcon} 
+          className="w-4 h-4 transition group-hover:scale-110" 
+          style={{ filter: iconFilter }} // Icon color adapts to theme
+          alt="Back" 
+        />
+        {/* Text removed to match the visual design provided */}
+      </div>
+  </div>
 )}
 
-                  </div>
+            {viewMode === 'grid' ? (
+                // --- GRID VIEW ---
+                <div className="grid grid-cols-3 md:grid-cols-6 lg:grid-cols-8 gap-4 content-start">
+                    {folders.map((folder) => (
+                      <div 
+                        key={folder.name}
+                        onClick={(e) => {
+                            e.stopPropagation();
+                            setContextMenu(null); setFolderContextMenu(null); setFileContextMenu(null);
+                            setCurrentFolder(currentFolder ? currentFolder + "/" + folder.name : folder.name);
+                        }}
+                        onContextMenu={(e) => { e.stopPropagation(); e.preventDefault(); setContextMenu(null); setFolderContextMenu({ x: e.pageX, y: e.pageY, folder }); }}
+                        className="flex flex-col items-center gap-3 group cursor-pointer p-4 rounded-xl hover:bg-white/5 transition"
+                      >
+                        <div className="w-14 h-14 bg-white rounded-lg flex items-center justify-center relative group-hover:scale-105 transition shadow-lg">
+                           <img src={FolderIcon} className="w-8 h-8 opacity-80" alt="folder"/>
+                        </div>
+                        <span className="text-[10px] text-center truncate w-full font-sans tracking-wide font-space" style={{ color: currentTheme.text }}>{folder.name}</span>
+                      </div>
+                    ))}
+
+                    {files.map((file) => {
+    const docId = btoa(file.fullPath);
+    const isOpen = windows.some(w => w.id === docId);
+    // Check if it's a note (no extension or .txt)
+    const isNote = !file.name.includes('.') || file.name.endsWith('.txt');
+
+    return (
+    <div 
+        key={file.id || file.name}
+        className={`file-item flex flex-col items-center gap-3 group cursor-pointer p-4 rounded-xl transition border`}
+        style={{ 
+            borderColor: isOpen ? currentTheme.accent : 'transparent',
+            backgroundColor: isOpen ? `${currentTheme.accent}20` : 'transparent'
+        }}
+        onClick={(e) => { e.stopPropagation(); openFile(file); }}
+        onContextMenu={(e) => { e.stopPropagation(); e.preventDefault(); setContextMenu(null); setFolderContextMenu(null); setFileContextMenu({ x: e.pageX, y: e.pageY, file }); }}
+    >
+        {isNote ? (
+            // --- NOTE STYLE ---
+            <div className="w-14 h-14 bg-yellow-50 border border-yellow-300 rounded-lg shadow-sm flex flex-col p-2 group-hover:scale-105 transition relative overflow-hidden">
+                {/* Lines to look like text */}
+                <div className="w-full h-1 bg-gray-500 mb-1 rounded-full opacity-50"></div>
+                <div className="w-3/4 h-1 bg-gray-500 mb-1 rounded-full opacity-50"></div>
+                <div className="w-full h-1 bg-gray-400 mb-1 rounded-full opacity-50"></div>
+                {/* Folded corner effect */}
+                <div className="absolute bottom-0 right-0 w-3 h-3 bg-yellow-200 shadow-[-1px_-1px_2px_rgba(0,0,0,0.1)]" style={{clipPath: 'polygon(100% 0, 0 100%, 100% 100%)'}}></div>
+            </div>
+        ) : (
+            // --- FILE STYLE (Original) ---
+            <div className="w-14 h-14 bg-[#222] border border-gray-700 rounded-lg flex items-center justify-center group-hover:scale-105 transition relative pointer-events-none">
+                <span className="text-[8px] absolute top-1 right-1 text-gray-500">{file.name.split('.').pop()}</span>
+                <div className="w-6 h-8 bg-gray-400 rounded-sm"></div>
+            </div>
+        )}
+        
+        {/* Name Label (Hidden for Notes inside the icon, but shown below as normal label) */}
+        {/* You said "dont show name as you are doing with file icon in note". I assume you mean don't show extension inside? 
+            Or do you mean hide the text label below? usually you still need the name below to identify it. 
+            If you want to hide the name *inside* the icon (like "txt" in top right), the Note Style above already removes that.
+        */}
+        <span className={`text-[10px] text-center w-full truncate font-sans tracking-wide pointer-events-none`} style={{ color: starred[docId] ? "#facc15" : currentTheme.text }}>
+            {file.name}
+        </span>
+    </div>
+    );
+})}
                 </div>
-              );
-            })
-          )}
-        </div>
-      </div>
+            ) : (
+                // --- LIST VIEW ---
+                <div className="flex flex-col gap-2 max-w-5xl mx-auto pl-2">
+                    {folders.map((folder) => (
+                        <div 
+                            key={folder.name}
+                            onClick={(e) => {
+                                e.stopPropagation();
+                                setContextMenu(null); setFolderContextMenu(null); setFileContextMenu(null);
+                                setCurrentFolder(currentFolder ? currentFolder + "/" + folder.name : folder.name);
+                            }}
+                            onContextMenu={(e) => { e.stopPropagation(); e.preventDefault(); setContextMenu(null); setFolderContextMenu({ x: e.pageX, y: e.pageY, folder }); }}
+                            className="flex items-center justify-between p-4 border rounded-xl hover:bg-white/5 cursor-pointer group transition-all"
+                            style={{ borderColor: currentTheme.border }}
+                        >
+                            <div className="flex items-center gap-4">
+                                <div className="w-8 h-8 bg-white rounded flex items-center justify-center">
+                                    <img src={FolderIcon} className="w-5 h-5 opacity-90" alt="folder"/>
+                                </div>
+                                <span className="text-sm font-sans tracking-wide font-space" style={{ color: currentTheme.text }}>{folder.name}</span>
+                            </div>
+                            
+                            <div className="flex items-center gap-4">
+                                <button onClick={(e) => { e.stopPropagation(); handleDownloadFolder(folder); }} className="relative action-btn p-2 hover:bg-white/10 rounded-full transition" data-tooltip="Download">
+                                    <img src={DownloadIcon} className="w-4 h-4" style={{ filter: iconFilter }} alt="dl"/>
+                                </button>
+                                <button onClick={(e) => { e.stopPropagation(); requestRename(folder, 'folder'); }} className="relative action-btn p-2 hover:bg-white/10 rounded-full transition" style={{ color: currentTheme.text }} data-tooltip="Rename">
+                                    <img src={EditIcon} className="w-4 h-4" style={{ filter: iconFilter }} alt="edit"/>
+                                </button>
+                                <button onClick={(e) => { e.stopPropagation(); requestDeleteFolder(folder); }} className="relative action-btn p-2 hover:bg-white/10 rounded-full transition" data-tooltip="Delete">
+                                    <img src={DeleteIcon} className="w-4 h-4" style={{ filter: iconFilter }} alt="del"/>
+                                </button>
+                            </div>
+                        </div>
+                    ))}
 
-      {contextMenu && (
-        <div
-          className="absolute bg-black border border-white shadow p-2 z-20"
-          style={{ top: contextMenu.y, left: contextMenu.x }}
-          onClick={() => setContextMenu(null)}
-        >
-          <button onClick={requestCreateFolder} className="flex items-center gap-3 w-full text-left px-2 py-2 hover:bg-gray-900" >
-            <img src={AddFolderIcon} alt="add folder" className="w-5 h-5 filter invert" />
-            New Folder
-          </button>
-          <button onClick={requestCreateFile} className="flex items-center gap-3 w-full text-left px-2 py-2 hover:bg-gray-900" >
-            <img src={AddNoteIcon} alt="add note" className="w-5 h-5 filter invert" />
-            New Note
-          </button>
-          <button onClick={handleFileSelectClick} className="flex items-center gap-3 w-full text-left px-2 py-2 hover:bg-gray-900" >
-            <img src={AddFileIcon} alt="add file" className="w-5 h-5 filter invert" />
-            New File
-          </button>
-        </div>
-      )}
+                    {files.map((file) => {
+                       const docId = btoa(file.fullPath);
+                       const isOpen = windows.some(w => w.id === docId);
+                       return (
+                        <div 
+                           key={file.id || file.name}
+                           onClick={(e) => { e.stopPropagation(); openFile(file); }}
+                           onContextMenu={(e) => { e.stopPropagation(); e.preventDefault(); setContextMenu(null); setFolderContextMenu(null); setFileContextMenu({ x: e.pageX, y: e.pageY, file }); }}
+                           className="flex items-center justify-between p-4 border rounded-xl cursor-pointer group transition-all hover:bg-white/5"
+                           style={{ 
+                               borderColor: isOpen ? currentTheme.accent : currentTheme.border,
+                               backgroundColor: isOpen ? `${currentTheme.accent}10` : 'transparent'
+                           }}
+                        >
+                            <div className="flex items-center gap-4">
+                                {(!file.name.includes('.') || file.name.endsWith('.txt')) ? (
+    // Note Icon (List View)
+    <div className="w-8 h-8 flex items-center justify-center bg-yellow-50 border border-yellow-300 rounded relative overflow-hidden">
+        <div className="w-4 h-4 border-b-2 border-gray-300 opacity-30"></div>
+    </div>
+) : (
+    // File Icon (List View)
+    <div className="w-8 h-8 flex items-center justify-center bg-[#222] border border-gray-700 rounded">
+        <div className="w-4 h-5 bg-gray-400 rounded-sm"></div>
+    </div>
+)}
+                                <span className="text-sm font-sans tracking-wide font-space" style={{ color: starred[docId] ? "#facc15" : currentTheme.text }}>
+                                    {file.name}
+                                </span>
+                            </div>
 
-     {folderContextMenu && (
-        <div
-          className="absolute bg-black border border-white shadow p-1 z-20"
-          style={{ top: folderContextMenu.y, left: folderContextMenu.x }}
-          onClick={(e) => e.stopPropagation()}
-        >
-          <button
-            onClick={() => handleDownloadFolder(folderContextMenu.folder)}
-            className="block w-full text-left px-4 py-2 text-sm hover:bg-gray-900 flex items-center gap-2"
-          >
-            <img 
-              src={DownloadIcon} 
-              alt="download" 
-              className="w-4 h-4 filter invert mr-3"
-            />
-            Download
-          </button>
-          
-          {/* --- THIS BUTTON IS NOW FIXED --- */}
-          <button
-            onClick={() => {
-              requestRename(folderContextMenu.folder, 'folder'); // <-- THE FIX IS HERE
+                            <div className="flex items-center gap-4">
+                                <a href={supabase.storage.from("files").getPublicUrl(file.fullPath).data.publicUrl} download={file.name} onClick={e => e.stopPropagation()} className="relative action-btn p-2 hover:bg-white/10 rounded-full transition" data-tooltip="Download">
+                                    <img src={DownloadIcon} className="w-4 h-4" style={{ filter: iconFilter }} alt="dl"/>
+                                </a>
+                                <button onClick={(e) => { e.stopPropagation(); handleStarFile(file); }} className="relative action-btn p-2 hover:bg-white/10 rounded-full transition" data-tooltip={starred[docId] ? 'Private' : 'Public'}>
+<img src={starred[docId] ? StarOnIcon : StarOffIcon} className="w-4 h-4" style={{ filter: iconFilter }} alt="star"/>                                </button>
+                                <button onClick={(e) => { e.stopPropagation(); requestDeleteFile(file); }} className="relative action-btn p-2 hover:bg-white/10 rounded-full transition" data-tooltip="Delete">
+                                    <img src={DeleteIcon} className="w-4 h-4" style={{ filter: iconFilter }} alt="del"/>
+                                </button>
+                            </div>
+                        </div>
+                       );
+                    })}
+                </div>
+            )}
+        </div>
+        
+       {/* --- BOTTOM RIGHT VIEW TOGGLES --- */}
+        <div className="absolute bottom-6 right-6 z-30 flex gap-2">
+            <button 
+                onClick={() => changeViewMode('list')} // <--- UPDATED
+                className={`w-10 h-10 rounded-full flex items-center justify-center border transition`} 
+                style={{ backgroundColor: viewMode === 'list' ? currentTheme.text : currentTheme.panel, borderColor: viewMode === 'list' ? currentTheme.text : '#333' }}
+            >
+                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke={viewMode === 'list' ? currentTheme.panel : 'gray'} className="w-5 h-5">
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M3.75 6.75h16.5M3.75 12h16.5m-16.5 5.25h16.5" />
+                </svg>
+            </button>
+            <button 
+                onClick={() => changeViewMode('grid')} // <--- UPDATED
+                className={`w-10 h-10 rounded-full flex items-center justify-center border transition`} 
+                style={{ backgroundColor: viewMode === 'grid' ? currentTheme.text : currentTheme.panel, borderColor: viewMode === 'grid' ? currentTheme.text : '#333' }}>
+                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke={viewMode === 'grid' ? currentTheme.panel : 'gray'} className="w-5 h-5">
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M3.75 6A2.25 2.25 0 016 3.75h2.25A2.25 2.25 0 0110.5 6v2.25a2.25 2.25 0 01-2.25 2.25H6a2.25 2.25 0 01-2.25-2.25V6zM3.75 15.75A2.25 2.25 0 016 13.5h2.25a2.25 2.25 0 012.25 2.25V18a2.25 2.25 0 01-2.25 2.25H6A2.25 2.25 0 013.75 18v-2.25zM13.5 6a2.25 2.25 0 012.25-2.25H18A2.25 2.25 0 0120.25 6v2.25A2.25 2.25 0 0118 10.5h-2.25A2.25 2.25 0 0113.5 8.25V6zM13.5 15.75a2.25 2.25 0 012.25-2.25H18a2.25 2.25 0 012.25 2.25V18A2.25 2.25 0 0118 20.25h-2.25A2.25 2.25 0 0113.5 18v-2.25z" />
+                </svg>
+            </button>
+        </div>
+
+        {/* --- MULTIPLE WINDOWS RENDER --- */}
+        {windows.map((win) => (
+          <div 
+            key={win.id}
+            className="absolute shadow-[0_0_50px_rgba(0,0,0,0.8)] flex flex-col transition-[box-shadow] duration-75"
+            style={{ 
+              width: win.isMaximized ? '100%' : `${win.w}px`, 
+              height: win.isMaximized ? '100%' : `${win.h}px`,
+              left: win.isMaximized ? 0 : `${win.x}px`, 
+              top: win.isMaximized ? 0 : `${win.y}px`,
+              zIndex: win.zIndex
             }}
-            className="block w-full text-left px-4 py-2 text-sm hover:bg-gray-900 flex items-center gap-2"
+            onMouseDown={() => focusWindow(win.id)} 
           >
-            <img 
-              src={RenameIcon} 
-              alt="rename" 
-              className="w-4 h-4 filter invert mr-3"
-            />
-            Rename
-          </button>
-          {/* --- END FIX --- */}
+            {/* Window Container - Fix: Rounded Corners + Overflow Hidden to clip children */}
+            <div 
+                className={`w-full h-full flex flex-col relative ${win.isMaximized ? '' : 'rounded-xl'} overflow-hidden border`} 
+                style={{ backgroundColor: currentTheme.container, borderColor: currentTheme.border }}
+            >
+                
+                {/* Window Header */}
+                <div 
+                   onMouseDown={(e) => handleMouseDown(e, win.id, 'move')}
+                   className="h-10 border-b flex items-center px-4 cursor-default select-none relative justify-between window-header"
+                   style={{ backgroundColor: currentTheme.panel, borderColor: currentTheme.border }}
+                >
+                    <div className="flex gap-2 items-center" onMouseDown={e => e.stopPropagation()}>
+                        <button onClick={() => closeWindow(win.id)} className="w-3 h-3 rounded-full bg-red-500 hover:bg-red-400" title="Close"></button>
+                        {!win.isMobileMode && (
+                            <button onClick={() => toggleMaximize(win.id)} className="w-3 h-3 rounded-full bg-yellow-500 hover:bg-yellow-400" title="Maximize/Restore"></button>
+                        )}
+                    </div>
+                    
+                    <span className="text-xs tracking-widest font-mono pointer-events-none absolute left-1/2 -translate-x-1/2" style={{ color: currentTheme.text, opacity: 0.7 }}>{win.file.name}</span>
+                    <div className="w-10"></div>
+                </div>
 
-          <button
-            onClick={() => requestDeleteFolder(folderContextMenu.folder)}
-            className="block w-full text-left px-4 py-2 text-sm text-red-400 hover:bg-gray-900 flex items-center gap-2"
-          >
-            <img 
-              src={DeleteIcon} 
-              alt="delete" 
-              className="w-4 h-4 filter invert mr-3"
-            />
-            Delete
-          </button>
-        </div>
-      )}
+                {/* Window Body */}
+                <div className="flex-1 overflow-auto p-4 select-text" style={{ backgroundColor: currentTheme.container }}>
+                    {win.url ? (
+                      (win.url.endsWith('.png') || win.url.endsWith('.jpg') || win.url.endsWith('.jpeg') || win.url.endsWith('.svg')) ? 
+                        <img src={win.url} alt="preview" className="max-w-full h-auto mx-auto object-contain" /> :
+                        <iframe src={win.url} className="w-full h-full border-none" title="pdf-preview" />
+                    ) : (
+                      <pre className="font-mono text-xs md:text-sm whitespace-pre-wrap break-words leading-relaxed" style={{ color: currentTheme.text }}>
+                        {win.content}
+                      </pre>
+                    )}
+                </div>
 
+                {/* Resize Handle */}
+                {!win.isMaximized && !win.isMobileMode && (
+                    <div className="absolute bottom-0 right-0 w-6 h-6 cursor-nwse-resize z-50 flex items-end justify-end p-1 resize-handle" onMouseDown={(e) => handleMouseDown(e, win.id, 'resize')}>
+                        <div className="w-2 h-2 border-r-2 border-b-2 pointer-events-none" style={{ borderColor: currentTheme.text }}></div>
+                    </div>
+                )}
 
-      {/* --- ADD FILE CONTEXT MENU --- */}
-      {fileContextMenu && (
-        <div
-          className="absolute bg-black border border-white shadow p-1 z-20"
-          style={{ top: fileContextMenu.y, left: fileContextMenu.x }}
-          onClick={(e) => e.stopPropagation()}
-        >
-          <button
-            onClick={() => {
-              setFileContextMenu(null);
-              requestRename(fileContextMenu.file, 'file');
-            }}
-            className="block w-full text-left px-4 py-2 text-sm hover:bg-gray-900 flex items-center gap-2"
-          >
-            <img 
-              src={RenameIcon} 
-              alt="rename" 
-              className="w-4 h-4 filter invert mr-3"
-            />
-            Rename
-          </button>
-          {/* <button
-            onClick={() => {
-              setFileContextMenu(null);
-              requestDeleteFile(fileContextMenu.file);
-            }}
-            className="block w-full text-left px-4 py-2 text-sm text-red-400 hover:bg-gray-900 flex items-center gap-2"
-          >
-            <img 
-              src={DeleteIcon} 
-              alt="delete" 
-              className="w-4 h-4 filter invert mr-3"
-            />
-            Delete
-          </button> */}
-        </div>
-      )}
-      {/* --- END FILE CONTEXT MENU --- */}
-
-      
-
-      {snackbar.show && (
-        <div className="fixed bottom-5 left-1/2 -translate-x-1/2 bg-white text-black px-6 py-3 rounded-lg shadow-lg text-center z-50 animate-pulse">
-          {snackbar.message}
-        </div>
-      )}
-
-      {isUploading && (
-        <div className="fixed bottom-5 right-5 bg-gray-900 border border-white p-3 rounded-lg shadow-lg w-64 z-50">
-            <p className="text-sm mb-2 text-white">
-              Uploading {uploadProgress.completed} of {uploadProgress.total} files...
-            </p>
-            <div className="w-full bg-black border border-white h-4 p-[2px]">
-                <div
-                    className="bg-white h-full transition-all duration-150"
-                    style={{
-                        width: uploadProgress.total > 0 ? `${(uploadProgress.completed / uploadProgress.total) * 100}%` : '0%',
-                    }}
-                ></div>
-            </div>
-        </div>
-      )}
-
-      {isDownloading && (
-        <div className="fixed bottom-5 right-5 bg-gray-900 border border-white p-3 rounded-lg shadow-lg w-64 z-50">
-            <p className="text-sm mb-2 text-white">
-                Downloading {downloadProgress.completed} of {downloadProgress.total} files...
-            </p>
-            <div className="w-full bg-black border border-white h-4 p-[2px]">
-                <div
-                    className="bg-blue-500 h-full transition-all duration-150"
-                    style={{
-                        width: downloadProgress.total > 0 ? `${(downloadProgress.completed / downloadProgress.total) * 100}%` : '0%',
-                    }}
-                ></div>
-            </div>
-        </div>
-      )}
-
-      {/* --- ADD RENAMING INDICATOR --- */}
-    {isRenaming && (
-      <div className="fixed bottom-5 right-5 bg-gray-900 border border-white p-3 rounded-lg shadow-lg w-64 z-50">
-        <p className="text-sm mb-2 text-white">
-          Renaming {renameProgress.completed} of {renameProgress.total} items...
-        </p>
-        <div className="w-full bg-black border border-white h-4 p-[2px]">
-          <div
-            className="bg-yellow-500 h-full transition-all duration-150"
-            style={{
-              width: renameProgress.total > 0 ? `${(renameProgress.completed / renameProgress.total) * 100}%` : '0%',
-            }}
-          ></div>
-        </div>
-      </div>
-    )}
-
-      {isDeleting && !isDownloading && (
-        <div className="fixed bottom-5 right-5 bg-gray-900 border border-white p-3 rounded-lg shadow-lg w-64 z-50">
-<p className="text-sm mb-2 text-white">
-              Deleting {deleteProgress.completed} of {deleteProgress.total} items...
-            </p>
-            <div className="w-full bg-black border border-white h-4 p-[2px]">
-                <div
-                    className="bg-red-500 h-full transition-all duration-150"
-                    style={{
-                        width: deleteProgress.total > 0 ? `${(deleteProgress.completed / deleteProgress.total) * 100}%` : '0%',
-                    }}
-                ></div>
-            </div>
-        </div>
-      )}
-      
-      {showDeleteDialog.show && (
-        <div className="fixed inset-0 bg-black bg-opacity-75 flex items-center justify-center z-[100]">
-          <div className="bg-black border-2 border-white p-8 rounded-lg shadow-lg text-center max-w-sm mx-auto">
-            <h2 className="text-xl font-bold mb-4">Confirm Deletion</h2>
-<p className="mb-6 text-white">
-              Are you sure you want to delete <span className="font-bold break-all">"{showDeleteDialog.item?.name}"</span>?
-              {showDeleteDialog.type === 'folder' && <span className="block mt-2 text-sm text-yellow-400">All contents within this folder will be permanently removed.</span>}
-            </p>
-            <div className="flex justify-center gap-4">
-              <button
-                onClick={() => setShowDeleteDialog({ show: false, item: null, type: '' })}
-                className="bg-white text-black px-6 py-2 hover:bg-gray-300"
-              >
-Cancel
-              </button>
-<button
-                onClick={handleConfirmDelete}
-                className="bg-red-600 text-white px-6 py-2 hover:bg-red-700 disabled:opacity-50"
-                disabled={isDeleting}
-              >
-                {isDeleting ? 'Deleting...' : 'Delete'}
-</button>
+                {/* Floating Actions - Icons Adaptive */}
+                <div className="absolute bottom-4 right-4 border rounded-full px-4 py-2 flex items-center gap-4 shadow-xl backdrop-blur-sm z-40" style={{ backgroundColor: currentTheme.panel, borderColor: currentTheme.border }} onMouseDown={e => e.stopPropagation()}>
+                    <a href={win.url || "#"} download={win.file.name} className="hover:opacity-70 transition"><img src={DownloadIcon} className="w-4 h-4" style={{ filter: iconFilter }} alt="dl"/></a>
+                    <div className="w-[1px] h-4" style={{ backgroundColor: currentTheme.border }}></div>
+                    <button onClick={() => requestDeleteFile(win.file)} className="hover:opacity-70 transition"><img src={DeleteIcon} className="w-4 h-4" style={{ filter: iconFilter }} alt="del"/></button>
+                    <div className="w-[1px] h-4" style={{ backgroundColor: currentTheme.border }}></div>
+                    <button onClick={() => handleStarFile(win.file)} className="hover:opacity-70 transition">
+<img src={starred[btoa(win.file.fullPath)] ? StarOnIcon : StarOffIcon} className="w-4 h-4" style={{ filter: iconFilter }} alt="star"/>                    </button>
+                </div>
             </div>
           </div>
-        </div>
+        ))}
+
+      </div>
+
+      {/* --- NOTIFICATIONS & PROGRESS AREA (FLOATING) --- */}
+      <div className="fixed bottom-8 left-8 z-[200] flex flex-col items-start gap-4">
+          
+          {/* Progress Bar - Float Design */}
+          {activeProgress && (
+              <div className="backdrop-blur-md border rounded-xl p-4 w-72 shadow-2xl animate-fade-in" style={{ backgroundColor: `${currentTheme.panel}E6`, borderColor: currentTheme.border }}>
+                  <div className="flex justify-between text-xs mb-2 font-bold tracking-wide" style={{ color: currentTheme.text }}>
+                      <span>{activeProgress.label}</span>
+                      <span>{Math.round((activeProgress.current / activeProgress.total) * 100)}%</span>
+                  </div>
+                  <div className="w-full h-2 rounded-full overflow-hidden" style={{ backgroundColor: `${currentTheme.text}20` }}>
+                      <div 
+                          className="h-full transition-all duration-300 ease-out rounded-full" 
+                          style={{ width: `${(activeProgress.current / activeProgress.total) * 100}%`, backgroundColor: currentTheme.accent }}
+                      ></div>
+                  </div>
+              </div>
+          )}
+
+          {/* Toast Messages - Float Design */}
+          {toasts.map((toast) => (
+              <div 
+                  key={toast.id} 
+                  className="px-6 py-4 rounded-xl border shadow-2xl flex items-center gap-4 animate-fade-in text-sm font-bold tracking-wide backdrop-blur-md"
+                  style={{ 
+                      backgroundColor: `${currentTheme.panel}E6`, 
+                      borderColor: currentTheme.border, 
+                      color: currentTheme.text 
+                  }}
+              >
+                  <div className="w-3 h-3 rounded-full shadow-[0_0_8px]" style={{ backgroundColor: currentTheme.accent, boxShadow: `0 0 10px ${currentTheme.accent}` }}></div>
+                  {toast.message}
+              </div>
+          ))}
+      </div>
+
+      {/* --- RETAIN MODALS AND INPUTS --- */}
+      <input type="file" ref={fileInputRef} onChange={handleFileSelectChange} className="hidden" multiple />
+      
+      {/* Context Menus */}
+      {[contextMenu, folderContextMenu, fileContextMenu].map((menu, i) => menu && (
+        <div key={i} className="absolute border rounded-lg p-1 z-[999] shadow-xl" style={{ top: menu.y, left: menu.x, backgroundColor: currentTheme.panel, borderColor: currentTheme.border }} onClick={e => e.stopPropagation()}></div>
+      ))}
+
+      {/* Specific Menus Implementation */}
+      {contextMenu && (
+        <div className="absolute border rounded-lg p-1 z-[999] shadow-xl" style={{ top: contextMenu.y, left: contextMenu.x, backgroundColor: currentTheme.panel, borderColor: currentTheme.border }} onClick={e => e.stopPropagation()}>
+           <button onClick={requestCreateFolder} className="flex items-center gap-2 px-4 py-2 text-xs hover:bg-white/10 w-full text-left rounded" style={{ color: currentTheme.text }}>New Folder</button>
+           <button onClick={requestCreateFile} className="flex items-center gap-2 px-4 py-2 text-xs hover:bg-white/10 w-full text-left rounded" style={{ color: currentTheme.text }}>New Note</button>
+<button onClick={handleFileSelectClick} className="flex items-center gap-2 px-4 py-2 text-xs hover:bg-white/10 w-full text-left rounded" style={{ color: currentTheme.text }}>New File</button>        </div>
+      )}
+      
+      {folderContextMenu && (
+         <div className="absolute border rounded-lg p-1 z-[999] shadow-xl" style={{ top: folderContextMenu.y, left: folderContextMenu.x, backgroundColor: currentTheme.panel, borderColor: currentTheme.border }} onClick={e => e.stopPropagation()}>
+           <button onClick={() => handleDownloadFolder(folderContextMenu.folder)} className="block w-full text-left px-4 py-2 text-xs hover:bg-white/10 rounded" style={{ color: currentTheme.text }}>Download Zip</button>
+           <button onClick={() => requestRename(folderContextMenu.folder, 'folder')} className="block w-full text-left px-4 py-2 text-xs hover:bg-white/10 rounded" style={{ color: currentTheme.text }}>Rename</button>
+           <button onClick={() => requestDeleteFolder(folderContextMenu.folder)} className="block w-full text-left px-4 py-2 text-xs text-red-400 hover:bg-white/10 rounded">Delete</button>
+         </div>
+      )}
+
+      {fileContextMenu && (
+         <div className="absolute border rounded-lg p-1 z-[999] shadow-xl" style={{ top: fileContextMenu.y, left: fileContextMenu.x, backgroundColor: currentTheme.panel, borderColor: currentTheme.border }} onClick={e => e.stopPropagation()}>
+           <button onClick={() => { openFile(fileContextMenu.file); setFileContextMenu(null); }} className="block w-full text-left px-4 py-2 text-xs hover:bg-white/10 rounded font-bold" style={{ color: currentTheme.accent }}>Open</button>
+           <button onClick={() => requestRename(fileContextMenu.file, 'file')} className="block w-full text-left px-4 py-2 text-xs hover:bg-white/10 rounded" style={{ color: currentTheme.text }}>Rename</button>
+           <button onClick={() => handleStarFile(fileContextMenu.file)} className="block w-full text-left px-4 py-2 text-xs hover:bg-white/10 rounded" style={{ color: currentTheme.text }}>
+                {starred[btoa(fileContextMenu.file.fullPath)] ? 'Private' : 'Public'}
+           </button>
+<button onClick={() => handleDownloadFile(fileContextMenu.file)} className="block w-full text-left px-4 py-2 text-xs hover:bg-white/10 rounded" style={{ color: currentTheme.text }}>Download</button>           <button onClick={() => requestDeleteFile(fileContextMenu.file)} className="block w-full text-left px-4 py-2 text-xs text-red-400 hover:bg-white/10 rounded">Delete</button>
+         </div>
+      )}
+
+      {/* --- MODALS (Keeping dark) --- */}
+      {showDeleteDialog.show && (
+       <div className="fixed inset-0 bg-black/80 backdrop-blur-sm flex items-center justify-center z-[9999]">
+         <div className="bg-[#111] border border-white/30 p-8 rounded-2xl text-center max-w-sm mx-auto shadow-2xl">
+           <h2 className="text-lg font-bold mb-4 text-red-400">DELETE?</h2>
+           <p className="mb-6 text-gray-300 text-xs">"{showDeleteDialog.item?.name}"</p>
+           <div className="flex justify-center gap-4">
+              <button onClick={() => setShowDeleteDialog({ show: false, item: null, type: '' })} className="px-6 py-2 rounded-full border border-white/20 text-xs hover:bg-white/10 text-white">Cancel</button>
+              <button onClick={handleConfirmDelete} className="px-6 py-2 rounded-full bg-red-600 text-white text-xs hover:bg-red-500">Confirm</button>
+           </div>
+         </div>
+       </div>
       )}
 
       {showCreateFolderDialog && (
-        <div className="fixed inset-0 bg-black bg-opacity-75 flex items-center justify-center z-[100]">
-          <form onSubmit={handleConfirmCreateFolder} className="bg-black border-2 border-white p-8 rounded-lg shadow-lg text-center max-w-sm mx-auto">
-            <h2 className="text-xl font-bold mb-4">Create New Folder</h2>
-            <input
-              type="text"
-              value={newFolderName}
-              onChange={(e) => setNewFolderName(e.target.value)}
-              className="w-full bg-gray-800 border border-white text-white p-2 mb-6 focus:outline-none focus:ring-2 focus:ring-white"
-              placeholder="Enter folder name..."
-              autoFocus
-            />
+        <div className="fixed inset-0 bg-black/80 backdrop-blur-sm flex items-center justify-center z-[9999]">
+          <form onSubmit={handleConfirmCreateFolder} className="bg-[#111] border border-white/30 p-8 rounded-2xl text-center max-w-sm mx-auto shadow-2xl w-full">
+            <h2 className="text-lg font-bold mb-6 text-white">NEW FOLDER</h2>
+            <input type="text" value={newFolderName} onChange={(e) => setNewFolderName(e.target.value)} className="w-full bg-[#222] border border-white/20 rounded-lg p-3 mb-6 text-white focus:outline-none focus:border-green-500 text-center" placeholder="Name..." autoFocus />
             <div className="flex justify-center gap-4">
-<button
-                type="button"
-                onClick={() => { setShowCreateFolderDialog(false); setNewFolderName(""); }}
-                className="bg-gray-600 text-white px-6 py-2 hover:bg-gray-700"
-              >
-Cancel
-              </button>
-              <button
-                type="submit"
-                className="bg-white text-black px-6 py-2 hover:bg-gray-300 disabled:opacity-50"
-                disabled={!newFolderName.trim()}
-              >
-                Create
-              </button>
+               <button type="button" onClick={() => { setShowCreateFolderDialog(false); setNewFolderName(""); }} className="px-6 py-2 rounded-full border border-white/20 text-xs hover:bg-white/10 text-white">Cancel</button>
+               <button type="submit" className="px-6 py-2 rounded-full bg-white text-black text-xs hover:bg-gray-200">Create</button>
+            </div>
+          </form>
+        </div>
+      )}
+
+      {showRenameDialog.show && (
+        <div className="fixed inset-0 bg-black/80 backdrop-blur-sm flex items-center justify-center z-[9999]">
+          <form onSubmit={handleConfirmRename} className="bg-[#111] border border-white/30 p-8 rounded-2xl text-center max-w-sm mx-auto shadow-2xl w-full">
+            <h2 className="text-lg font-bold mb-6 text-white">RENAME</h2>
+            <input type="text" value={newName} onChange={(e) => setNewName(e.target.value)} className="w-full bg-[#222] border border-white/20 rounded-lg p-3 mb-6 text-white focus:outline-none focus:border-green-500 text-center" autoFocus onFocus={(e) => e.target.select()} />
+            <div className="flex justify-center gap-4">
+               <button type="button" onClick={() => { setShowRenameDialog({ show: false, item: null, type: '' }); setNewName(""); }} className="px-6 py-2 rounded-full border border-white/20 text-xs hover:bg-white/10 text-white">Cancel</button>
+               <button type="submit" className="px-6 py-2 rounded-full bg-white text-black text-xs hover:bg-gray-200">Save</button>
             </div>
           </form>
         </div>
       )}
 
       {showCreateFileDialog && (
-        <div className="fixed inset-0 bg-black bg-opacity-75 flex items-center justify-center z-[100] p-4">
-          <div className={`bg-black border-2 border-white p-8 rounded-lg shadow-lg text-center w-full max-w-lg mx-auto flex flex-col transition-all duration-300 ${createFileStep === 'name' ? 'h-auto' : 'h-[70vh]'}`}>
-            {createFileStep === 'name' ? (
-              <form onSubmit={handleNameToContentStep} className="flex flex-col">
-                <h2 className="text-xl font-bold mb-4">Create New Note</h2>
-                <p className="mb-6 text-gray-400">Step 1: Enter note name.</p>
-                <input
-                  type="text"
-                  value={newFileName}
-                  onChange={(e) => setNewFileName(e.target.value)}
-                  className="w-full bg-gray-800 border border-white text-white p-2 mb-6 focus:outline-none focus:ring-2 focus:ring-white"
-                  placeholder="eg: note (or leave blank)"
-                  autoFocus
-                />
-<div className="mt-auto flex justify-center gap-4">
-                  <button type="button" onClick={handleCancelCreateFile} className="bg-gray-600 text-white px-6 py-2 hover:bg-gray-700">
-                    Cancel
-                  </button>
-                  <button type="submit" className="bg-white text-black px-6 py-2 hover:bg-gray-300">
-Next
-                  </button>
-                </div>
-              </form>
-            ) : (
-              <form onSubmit={handleSaveNewFile} className="flex flex-col h-full">
-                <h2 className="text-xl font-bold mb-2 truncate" title={validatedFileName}>
-                    Note: <span className="text-yellow-400">{validatedFileName}</span>
-</h2>
-                <p className="mb-4 text-gray-400">Step 2: Add note content.</p>
-                <textarea
-                  value={newFileContent}
-                  onChange={(e) => setNewFileContent(e.target.value)}
-                  className="w-full flex-1 bg-gray-900 border border-white text-white p-3 mb-6 focus:outline-none focus:ring-2 focus:ring-white resize-none font-mono"
-                  placeholder="Type or paste content here..."
-                  autoFocus
-                />
-                <div className="mt-auto flex justify-center gap-4">
-                  <button type="button" onClick={handleCancelCreateFile} className="bg-gray-600 text-white px-6 py-2 hover:bg-gray-700">
-Cancel
-                  </button>
-                  <button type="submit" className="bg-white text-black px-6 py-2 hover:bg-gray-300">
-Save Note
-                  </button>
-                </div>
-              </form>
-            )}
-          </div>
-        </div>
+         <div className="fixed inset-0 bg-black/80 backdrop-blur-sm flex items-center justify-center z-[9999] p-4">
+           <div className="bg-[#111] border border-white/30 p-6 rounded-2xl shadow-2xl w-full max-w-2xl h-[70vh] flex flex-col">
+             {createFileStep === 'name' ? (
+                <form onSubmit={handleNameToContentStep} className="flex flex-col h-full justify-center items-center">
+                   <h2 className="text-xl mb-8 text-white">NAME YOUR NOTE</h2>
+                   <input type="text" value={newFileName} onChange={(e) => setNewFileName(e.target.value)} className="w-3/4 bg-[#222] border-b-2 border-white/20 p-4 text-center text-xl focus:outline-none focus:border-green-500 mb-10 text-white" placeholder="Untitled" autoFocus />
+                   <div className="flex gap-4">
+                      <button type="button" onClick={handleCancelCreateFile} className="px-8 py-3 rounded-full border border-white/20 hover:bg-white/10 text-white">Cancel</button>
+                      <button type="submit" className="px-8 py-3 rounded-full bg-white text-black hover:bg-gray-200">Next</button>
+                   </div>
+                </form>
+             ) : (
+                <form onSubmit={handleSaveNewFile} className="flex flex-col h-full">
+                   <div className="flex justify-between items-center mb-4 border-b border-white/10 pb-4">
+                      <span className="text-gray-400 text-xs">Editing: {validatedFileName}</span>
+                      <button type="button" onClick={handleCancelCreateFile} className="text-red-400 hover:text-red-300 text-xs">Close</button>
+                   </div>
+                   <textarea value={newFileContent} onChange={(e) => setNewFileContent(e.target.value)} className="flex-1 bg-[#0f0f0f] p-4 rounded-xl font-mono text-sm focus:outline-none resize-none mb-4 text-white" placeholder="Start typing..." autoFocus />
+                   <button type="submit" className="w-full py-3 bg-white text-black rounded-xl font-bold hover:bg-gray-200">SAVE NOTE</button>
+                </form>
+             )}
+           </div>
+         </div>
       )}
 
-      {/* --- ADD RENAME DIALOG --- */}
-    {showRenameDialog.show && (
-      <div className="fixed inset-0 bg-black bg-opacity-75 flex items-center justify-center z-[100]">
-        <form onSubmit={handleConfirmRename} className="bg-black border-2 border-white p-8 rounded-lg shadow-lg text-center max-w-sm mx-auto">
-          <h2 className="text-xl font-bold mb-4">Rename {showRenameDialog.type}</h2>
-          <p className="mb-2 text-sm text-gray-400">Change</p>
-          <p className="mb-4 font-bold break-all">"{showRenameDialog.item?.name}"</p>
-          <p className="mb-2 text-sm text-gray-400">To</p>
-          <input
-            type="text"
-            value={newName}
-            onChange={(e) => setNewName(e.target.value)}
-            className="w-full bg-gray-800 border border-white text-white p-2 mb-6 focus:outline-none focus:ring-2 focus:ring-white"
-            placeholder="Enter new name..."
-            autoFocus
-            onFocus={(e) => e.target.select()}
-          />
-          <div className="flex justify-center gap-4">
-            <button
-              type="button"
-              onClick={() => { setShowRenameDialog({ show: false, item: null, type: '' }); setNewName(""); }}
-              className="bg-gray-600 text-white px-6 py-2 hover:bg-gray-700"
-            >
-              Cancel
-            </button>
-            <button
-              type="submit"
-              className="bg-white text-black px-6 py-2 hover:bg-gray-300 disabled:opacity-50"
-              disabled={!newName.trim() || newName.trim() === showRenameDialog.item?.name}
-            >
-              Rename
-            </button>
-          </div>
-        </form>
-      </div>
-    )}
-    {/* --- END RENAME DIALOG --- */}
     </div>
   );
 }

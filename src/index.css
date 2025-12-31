@@ -5,21 +5,26 @@
 body {
   @apply bg-black text-white;
 }
-        
-          .no-scrollbar::-webkit-scrollbar {
-            display: none;
-          }
-          .no-scrollbar {
-            -ms-overflow-style: none;
-            scrollbar-width: none;
-          }
-          /* --- ADDED FOR PUBLIC BUTTON --- */
-          @keyframes gradient-xy {
-            0%, 100% { background-position: 0% 50%; }
-            50% { background-position: 100% 50%; }
-          }
-          .animated-gradient {
-            background: linear-gradient(270deg, #3b82f6, #8b5cf6, #ec4899);
-            background-size: 200% 200%;
-            animation: gradient-xy 6s ease infinite;
-          }
+
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+.no-scrollbar {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+
+/* --- ANIMATED GRADIENT BORDER --- */
+@keyframes gradient-xy {
+  0%, 100% { background-position: 0% 50%; }
+  50% { background-position: 100% 50%; }
+}
+
+.animated-gradient-border {
+  background: linear-gradient(45deg, #f63b3b, #3b82f6, #8b5cf6, #ec4899, #83f63b);
+  background-size: 300% 300%;
+  animation: gradient-xy 3s ease infinite;
+  padding: 1px; /* This controls border thickness */
+  border-radius: 9999px; /* Fully rounded */
+  display: inline-block;
+}

@@ -1,4 +1,3 @@
-// src/pages/Public.jsx
 import { useEffect, useState } from "react";
 import { supabase } from "../supabase";
 import { db } from "../firebase";
@@ -9,6 +8,13 @@ import {
   where,
   documentId,
 } from "firebase/firestore";
+import { useNavigate } from "react-router-dom";
+
+// Icons
+import BackLeftIcon from "../assets/backLeft.svg";
+import DownloadIcon from "../assets/download.svg";
+import CopyIcon from "../assets/copy.svg"; 
+import XOIcon from '../assets/xoMod.png'; 
 
 export default function Public() {
   const [userData, setUserData] = useState([]);
@@ -18,7 +24,10 @@ export default function Public() {
   const [loading, setLoading] = useState(true);
   const [isDownloading, setIsDownloading] = useState(false);
   const [isCopied, setIsCopied] = useState(false);
+   
+  const navigate = useNavigate();
 
+  // Fetch Public Files
   useEffect(() => {
     const fetchFilesAndUsers = async () => {
       setLoading(true);
@@ -163,191 +172,128 @@ export default function Public() {
     const ext = fileName.slice(fileName.lastIndexOf(".")).toLowerCase();
     const lines = code.split("\n");
 
-    const isNumber = (str) => /^\d+$/.test(str);
-
     return lines.map((line, lineIndex) => {
-      // --- PYTHON (.py) ---
       if (ext === ".py") {
-        // Regex Priority: Comments (#.*) capture the REST of the line
         const regex = /(#.*)|("[^"]*")|('[^']*')|([\(\)])|([\[\]\{\}])|([.,;])|([+\-*/%=<>!&|^~]+)|(\b\w+\b)|(\s+)/g;
         const tokens = line.split(regex).filter((t) => t !== undefined && t !== "");
-
         return (
           <div key={lineIndex} className="min-h-[1.2em]">
             {tokens.map((token, i) => {
-              // 1. Comments: Pure White (Absolute Priority)
-              if (token.startsWith("#")) {
-                return <span key={i} className="text-white">{token}</span>;
+              if (token.startsWith("#")) return <span key={i} className="text-gray-500">{token}</span>;
+              if (token.startsWith('"') || token.startsWith("'")) return <span key={i} className="text-blue-300">{token}</span>;
+              if (token === "(" || token === ")") return <span key={i} className="text-red-400">{token}</span>;
+              if (/^[+\-*/%=<>!&|^~]+$/.test(token)) return <span key={i} className="text-green-400">{token}</span>;
+              if (/^\w+$/.test(token) && !/^\d+$/.test(token)) {
+                 const pyKeywords = ["if", "elif", "else", "for", "while", "return", "def", "class", "import", "from", "try", "except"];
+                 if (pyKeywords.includes(token)) return <span key={i} className="text-purple-400">{token}</span>;
+                 return <span key={i} className="text-white">{token}</span>; 
               }
-              // 2. Strings: Neon Blue
-              if (token.startsWith('"') || token.startsWith("'")) {
-                return <span key={i} className="text-blue-300">{token}</span>;
-              }
-              // 3. Arguments (Parens): Red
-              if (token === "(" || token === ")") {
-                return <span key={i} className="text-red-500">{token}</span>;
-              }
-              // 4. Operators: Dark Green
-              if (/^[+\-*/%=<>!&|^~]+$/.test(token)) {
-                return <span key={i} className="text-green-600">{token}</span>;
-              }
-              
-              // 5. Keywords & Variables
-              if (/^\w+$/.test(token) && !isNumber(token)) {
-                 const pyKeywords = [
-                   "if", "elif", "else", "for", "while", "return", "def", "class", 
-                   "import", "from", "try", "except", "break", "continue", "pass", 
-                   "in", "is", "not", "and", "or", "with", "as", "global", "lambda"
-                 ];
-                 
-                 // Control Flow / Keywords: Dark Green
-                 if (pyKeywords.includes(token)) {
-                    return <span key={i} className="text-green-600">{token}</span>;
-                 }
-
-                 // Method Name Detection (Purple)
-                 let isMethod = false;
-                 for(let j=i+1; j < tokens.length; j++){
-                    if(tokens[j].trim() === "") continue; 
-                    if(tokens[j] === "(") isMethod = true;
-                    break;
-                 }
-                 if (isMethod) {
-                     return <span key={i} className="text-purple-500">{token}</span>;
-                 }
-
-                 // Variable Names: Cream
-                 return <span key={i} className="text-[#ffe4c4]">{token}</span>; 
-              }
-
-              // All other (Numbers, punctuation): Yellow
               return <span key={i} className="text-yellow-300">{token}</span>;
             })}
           </div>
         );
       } 
-      
-      // --- JAVA / C++ / C (.java, .cpp, .c, .h) ---
       else if ([".java", ".cpp", ".c", ".h", ".hpp", ".cc"].includes(ext)) {
-        // Regex Priority: Comments (//.*) capture the REST of the line
         const regex = /(\/\/.*)|("[^"]*")|([\(\)])|([\[\]\{\}])|([.,;])|([+\-*/%=<>!&|^~]+)|(\b\w+\b)|(\s+)/g;
         const tokens = line.split(regex).filter((t) => t !== undefined && t !== "");
-
         return (
           <div key={lineIndex} className="min-h-[1.2em]">
             {tokens.map((token, i) => {
-              // 1. Comments: Pure White (Absolute Priority)
-              if (token.trim().startsWith("//")) {
+              if (token.trim().startsWith("//")) return <span key={i} className="text-gray-500">{token}</span>;
+              if (token.startsWith('"')) return <span key={i} className="text-blue-300">{token}</span>;
+              if (token === "(" || token === ")") return <span key={i} className="text-red-400">{token}</span>;
+              if (/^[+\-*/%=<>!&|^~]+$/.test(token)) return <span key={i} className="text-green-400">{token}</span>;
+              if (/^\w+$/.test(token) && !/^\d+$/.test(token)) {
+                const greenKeywords = ["if", "else", "for", "while", "return", "public", "private", "class", "void", "int", "boolean"];
+                if (greenKeywords.includes(token)) return <span key={i} className="text-green-500">{token}</span>;
                 return <span key={i} className="text-white">{token}</span>;
               }
-              // 2. Strings: Neon Blue
-              if (token.startsWith('"')) {
-                return <span key={i} className="text-blue-300">{token}</span>;
-              }
-              // 3. Arguments (Parens): Red
-              if (token === "(" || token === ")") {
-                return <span key={i} className="text-red-500">{token}</span>;
-              }
-              // 4. Operators: Dark Green
-              if (/^[+\-*/%=<>!&|^~]+$/.test(token)) {
-                return <span key={i} className="text-green-600">{token}</span>;
-              }
-
-              // 5. Word Analysis
-              if (/^\w+$/.test(token) && !isNumber(token)) {
-                // Control Flow / Access Modifiers: Dark Green
-                const greenKeywords = [
-                    "if", "else", "for", "while", "do", "switch", "case", 
-                    "default", "break", "continue", "return", "catch", "try",
-                    "public", "private", "protected", "static", "class", 
-                    "struct", "namespace", "using", "include", "import", "void"
-                ];
-
-                if (greenKeywords.includes(token)) {
-                    return <span key={i} className="text-green-600">{token}</span>;
-                }
-
-                // Types: Pink
-                const types = [
-                  "int", "float", "double", "char", "long", "short", 
-                  "bool", "boolean", "String", "auto", "const", "final", 
-                  "unsigned", "signed"
-                ];
-
-                if (types.includes(token)) {
-                   return <span key={i} className="text-pink-500">{token}</span>;
-                }
-                
-                // Method Name Detection (Purple)
-                let isMethod = false;
-                for(let j=i+1; j < tokens.length; j++){
-                    if(tokens[j].trim() === "") continue; 
-                    if(tokens[j] === "(") isMethod = true;
-                    break;
-                }
-                if (isMethod) {
-                     return <span key={i} className="text-purple-500">{token}</span>;
-                }
-
-                // Variable Name: Cream Skin Color
-                return <span key={i} className="text-[#ffe4c4]">{token}</span>;
-              }
-
-              // All other (Numbers, punctuation, etc): Yellow
               return <span key={i} className="text-yellow-300">{token}</span>;
             })}
           </div>
         );
       } 
-      
-      // --- DEFAULT (Other Languages) ---
       else {
-        return <div key={lineIndex} className="text-white min-h-[1.2em]">{line}</div>;
+        return <div key={lineIndex} className="min-h-[1.2em] text-white">{line}</div>;
       }
     });
   };
 
   return (
-    <div className="min-h-screen bg-black text-white font-press flex flex-col">
-      <div className="flex justify-center items-center p-4 border-b border-white">
-        <h1 className="text-2xl">CODESPACEXO</h1>
+    <div 
+        className="min-h-screen font-press flex flex-col transition-colors duration-300 bg-black text-white p-4 md:p-6"
+    >
+      <style>
+        {`
+          .font-press { font-family: 'Press Start 2P', monospace; }
+          ::-webkit-scrollbar { width: 8px; height: 8px; }
+          ::-webkit-scrollbar-track { background: #111; border-radius: 4px; }
+          ::-webkit-scrollbar-thumb { background: #333; border-radius: 4px; }
+          ::-webkit-scrollbar-thumb:hover { background: #555; }
+        `}
+      </style>
+
+      {/* --- HEADER --- */}
+      <div className="w-full grid grid-cols-[1fr_auto_1fr] items-center mb-6 z-40 relative border-b border-white/10 pb-6">
+        {/* Left: Back Button */}
+        <div className="justify-self-start">
+            <button 
+                onClick={() => window.history.back()} 
+                className="px-6 py-2 rounded-full border border-white/20 hover:bg-white/10 transition group flex items-center justify-center"
+            >
+                <img src={BackLeftIcon} className="w-4 h-6 filter invert group-hover:scale-110 transition" alt="Back" />
+            </button>
+        </div>
+        
+        {/* Center: Title / Logo */}
+        {/* Desktop: Text "PUBLIC" */}
+        <h1 className="hidden md:block text-2xl tracking-widest text-white">CODESPACEXO</h1>
+        
+        {/* Mobile: Logo "XOIcon" (Inverted because background is black) */}
+        <div className="md:hidden flex justify-center">
+             <img src={XOIcon} className="h-14 w-auto" alt="Logo" />
+        </div>
+        
+        {/* Right: Spacer */}
+        <div className="justify-self-end"></div>
       </div>
 
-      <div className="flex flex-1 flex-col md:flex-row overflow-hidden">
+      <div className="flex flex-1 flex-col md:flex-row overflow-hidden gap-6">
+        
         {/* --- PANEL 1: FILE LIST (LEFT) --- */}
         <div
           className={`
-            ${previewFile ? "hidden md:block" : "w-full"} 
-            md:w-1/3 border-r border-white p-4 overflow-y-auto space-y-4 flex-shrink-0
+            ${previewFile ? "hidden md:block" : "w-full flex-1"} 
+            md:w-1/3 rounded-[20px] border border-white/20 p-4 overflow-y-auto flex-shrink-0 bg-[#0a0a0a]
           `}
         >
-          <button
-            onClick={() => window.history.back()}
-            className="bg-white text-black px-3 py-1 text-sm hover:bg-gray-300 mb-4"
-          >
-            Back
-          </button>
-
           {loading ? (
-            <p>Loading public files...</p>
+            <p className="text-sm opacity-50 p-2 text-center">Loading public files...</p>
           ) : userData.length === 0 ? (
-            <p>No public files available right now.</p>
+            <p className="text-sm opacity-50 p-2 text-center">No public files available.</p>
           ) : (
             userData.map((user) => (
-              <div key={user.id}>
-                <div className="text-yellow-400">{user.name}</div>
-                {user.files.map((file) => (
-                  <div
-                    key={file.path}
-                    className="pl-2 flex items-center cursor-pointer group"
-                    onClick={() => handlePreview(file)}
-                  >
-                    <span className="text-gray-500 mr-2">| </span>
-                    <span className="truncate group-hover:underline">
-                      {file.name}
-                    </span>
-                  </div>
-                ))}
+              <div key={user.id} className="mb-6">
+                
+                {/* User Name */}
+                <div className="text-sm font-bold tracking-wide text-white mb-2 px-2">
+                    {user.name}
+                </div>
+                
+                {/* File List with Vertical Line Indentation */}
+                <div className="flex flex-col gap-2 border-l-2 border-white ml-3 pl-3">
+                    {user.files.map((file) => (
+                    <div
+                        key={file.path}
+                        className="flex items-center cursor-pointer group p-3 rounded-xl transition-all border border-white/5 hover:border-white/20 hover:bg-white/5"
+                        onClick={() => handlePreview(file)}
+                    >
+                        <span className="text-xs truncate font-press w-full text-gray-300 group-hover:text-white">
+                             {file.name}
+                        </span>
+                    </div>
+                    ))}
+                </div>
               </div>
             ))
           )}
@@ -355,67 +301,74 @@ export default function Public() {
 
         {/* --- PANEL 2: PREVIEW (RIGHT) --- */}
         {previewFile && (
-          <div className="flex-1 flex flex-col p-4 overflow-hidden">
-            <div className="flex flex-col items-start gap-3 mb-4 md:flex-row md:items-center md:justify-between">
-              <span className="w-full truncate text-left md:w-auto md:order-2">
-                {previewFile.name}
-              </span>
-              <div className="flex items-center justify-start gap-2 md:order-1">
-                <button
-                  onClick={() => {
-                    setPreviewFile(null);
-                    setPreviewContent("");
-                    setPreviewUrl("");
-                  }}
-                  className="bg-white text-black px-3 py-1 text-sm hover:bg-gray-300 md:hidden"
-                >
-                  Back
-                </button>
-                <button
+          <div 
+             className="flex-1 flex flex-col rounded-[20px] border border-white/20 overflow-hidden bg-[#111]"
+          >
+            {/* Preview Header */}
+            <div className="flex items-center justify-between p-4 border-b border-white/10 bg-[#0a0a0a]">
+              
+              {/* Left Side: Mobile Back Button & File Name */}
+              <div className="flex items-center gap-3 overflow-hidden flex-1 md:flex-none">
+                  {/* Mobile Back Button (Mac Red Circle Design) */}
+                  <button
+                   onClick={() => {
+                     setPreviewFile(null);
+                     setPreviewContent("");
+                     setPreviewUrl("");
+                   }}
+                   className="md:hidden w-3 h-3 rounded-full bg-[#FF5F57] hover:bg-[#FF5F57]/80 shadow-md ml-1"
+                  >
+                   {/* Icon removed for clean Mac circle look */}
+                  </button>
+
+                  {/* File Name */}
+                  <span className="truncate font-press text-[10px] md:text-xs opacity-70 text-white tracking-wider flex-1 text-center md:text-left md:flex-none">
+                     {previewFile.name}
+                  </span>
+              </div>
+              
+              {/* Right Side: Action Buttons (Hidden on Mobile) */}
+              <div className="hidden md:flex items-center gap-3">
+                 <button
                   onClick={handleDownload}
                   disabled={isDownloading}
-                  className="bg-blue-500 text-white px-3 py-1 text-sm hover:bg-blue-600 disabled:opacity-50"
+                  className="px-6 py-2 rounded-full text-[10px] font-bold border-2 border-white/20 transition hover:opacity-100 text-white tracking-wider bg-black hover:border-[#2563eb]"
                 >
-                  {isDownloading ? "..." : "Save"}
+                  {isDownloading ? "..." : "SAVE"}
                 </button>
+
                 <button
                   onClick={handleCopy}
                   disabled={isCopied || !!previewUrl}
-                  className="bg-orange-500 text-white px-3 py-1 text-sm hover:bg-orange-600 disabled:opacity-50"
+                  className="px-6 py-2 rounded-full text-[10px] font-bold border-2 border-white/20 transition hover:opacity-100 bg-black text-white tracking-wider hover:border-[#ea580c]"
                 >
-                  {isCopied ? "Copied!" : "Copy"}
+                  {isCopied ? "COPIED" : "COPY"}
                 </button>
               </div>
             </div>
 
-            {/* FIXED, RESPONSIVE PREVIEW AREA */}
-            <div className="flex-1 border border-white text-sm bg-neutral-900 max-h-[75vh] md:max-h-full overflow-auto">
+            {/* Preview Content */}
+            <div className="flex-1 overflow-auto bg-black relative p-4">
               {previewUrl.endsWith(".pdf") ? (
-                <div className="w-full h-full flex justify-center items-start p-2 overflow-auto">
-                  <iframe
-                    src={previewUrl}
-                    title={previewFile.name}
-                    className="w-full rounded-none"
-                    style={{
-                      border: "none",
-                      minHeight: "80vh",
-                    }}
-                  />
-                </div>
+                <iframe
+                  src={previewUrl}
+                  title={previewFile.name}
+                  className="w-full h-full border-none rounded-xl"
+                />
               ) : previewUrl.endsWith(".png") ||
                 previewUrl.endsWith(".jpeg") ||
                 previewUrl.endsWith(".svg") ||
                 previewUrl.endsWith(".jpg") ? (
-                <div className="w-full h-full flex items-center justify-center p-2 overflow-auto">
+                <div className="w-full h-full flex items-center justify-center">
                   <img
                     src={previewUrl}
                     alt={previewFile.name}
-                    className="max-w-full max-h-[70vh] md:max-h-full object-contain bg-white rounded-none"
+                    className="max-w-full max-h-full object-contain rounded-lg"
                   />
                 </div>
               ) : (
-                <div className="p-2 overflow-auto h-full">
-                  <pre className="font-space !font-space whitespace-pre-wrap">
+                <div className="h-full">
+                  <pre className="font-mono text-xs whitespace-pre-wrap text-gray-300">
                     {renderHighlightedCode(previewContent, previewFile.name)}
                   </pre>
                 </div>
@@ -426,8 +379,10 @@ export default function Public() {
 
         {/* --- PANEL 3: PLACEHOLDER (RIGHT) --- */}
         {!previewFile && (
-          <div className="hidden md:flex flex-1 items-center justify-center p-4">
-            <p className="text-gray-500">Select a file to preview</p>
+          <div 
+             className="hidden md:flex flex-1 items-center justify-center rounded-[20px] border border-dashed border-white/20"
+          >
+            <p className="opacity-50 text-sm animate-pulse text-white">Select a file to preview</p>
           </div>
         )}
       </div>

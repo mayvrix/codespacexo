@@ -5,6 +5,12 @@ import { useNavigate } from 'react-router-dom';
 // Add new updates here. They will be automatically sorted by date (newest first).
 const updatesList = [
   {
+    date: '2026-01-01',
+    title: 'CODESPACEXO 2.0: The 2026 Aesthetic Overhaul',
+    description:
+      'Welcome to the future of code backup. We have completely reimagined the platform with a modern, fluid design system. Key updates include curved UI architecture, an immersive full-height mobile sidebar, dynamic theming with glassmorphism and animated gradients, and visual polish across all interactions.',
+  },
+  {
     date: '2025-12-28',
     title: 'Authentication & Design Overhaul',
     description:

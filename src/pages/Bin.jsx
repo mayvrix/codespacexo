@@ -6,7 +6,7 @@ import JSZip from "jszip";
 import { saveAs } from "file-saver";
 
 // Reusing your existing assets
-import BackIcon from "../assets/back.svg";
+import BackIcon from "../assets/backLeft.svg"; // Assuming you have the left pointing back icon
 import DownloadIcon from "../assets/download.svg";
 import DeleteIcon from "../assets/delete.svg";
 import FolderIcon from "../assets/folder.svg";
@@ -34,13 +34,9 @@ export default function Bin() {
   }, [user]);
 
   // --- RECURSIVE ITEM RESOLVER ---
-  // expandMultiple: true for the top-level deleted item (e.g. "adcode"), 
-  // false for sub-folders (e.g. "assignment1") so they stay grouped.
   const resolveBinItem = async (item, expandMultiple = false) => {
-    // If it's a file, we are done
     if (!item.isFolder) return [item];
 
-    // List contents
     const { data, error } = await supabase.storage
       .from("recycle")
       .list(item.fullPath);
@@ -50,48 +46,36 @@ export default function Bin() {
       return [item];
     }
 
-    // Filter placeholders
     const children = data.filter((c) => c.name !== ".placeholder");
 
-    // Case A: Empty Folder -> Show it as is
     if (children.length === 0) return [item];
 
-    // Case B: Single Child -> ALWAYS Drill down (merge path)
-    // "adcode/assign5" (1 child) -> "adcode/assign5/q1"
     if (children.length === 1) {
       const child = children[0];
       const newItem = {
         ...child,
-        name: `${item.name}/${child.name}`, // Visual path: "adcode/assign5/q1"
-        fullPath: `${item.fullPath}/${child.name}`, // Storage path
+        name: `${item.name}/${child.name}`,
+        fullPath: `${item.fullPath}/${child.name}`,
         isFolder: !child.id,
       };
-      // Recursively resolve the child, keeping the current expansion permission
       return resolveBinItem(newItem, expandMultiple);
     }
 
-    // Case C: Multiple Children
     if (children.length > 1) {
       if (expandMultiple) {
-        // If we are allowed to expand (e.g., at Root "adcode"), 
-        // we return ALL children as separate items.
         const promises = children.map((child) => {
           const newItem = {
             ...child,
-            name: `${item.name}/${child.name}`, // "adcode/assign1"
+            name: `${item.name}/${child.name}`,
             fullPath: `${item.fullPath}/${child.name}`,
             isFolder: !child.id,
           };
-          // IMPORTANT: Pass false here. We expanded the root, but we usually 
-          // don't want to explode the sub-folders (like "assign1") into loose files.
           return resolveBinItem(newItem, false);
         });
 
         const results = await Promise.all(promises);
         return results.flat();
       } else {
-        // If expansion is off (sub-folder level), keep it grouped
-        // e.g., "adcode/assign1" stays as a Folder
         return [item];
       }
     }
@@ -102,14 +86,12 @@ export default function Bin() {
   const fetchBinItems = async () => {
     setLoading(true);
     try {
-      // 1. Get Root Items (The actual deleted items)
       const { data, error } = await supabase.storage
         .from("recycle")
         .list(user.uid + "/");
 
       if (error) throw error;
 
-      // 2. Prepare Root Objects
       const rootItems = data
         .filter((item) => item.name !== ".placeholder")
         .map((item) => ({
@@ -118,12 +100,9 @@ export default function Bin() {
           isFolder: !item.id,
         }));
 
-      // 3. Resolve Items (Parallel)
-      // We pass `true` to allow expanding the root folders (like "adcode")
       const promises = rootItems.map((item) => resolveBinItem(item, true));
       const resolvedArrays = await Promise.all(promises);
       
-      // Flatten the array of arrays
       setItems(resolvedArrays.flat());
 
     } catch (error) {
@@ -226,86 +205,110 @@ export default function Bin() {
   };
 
   return (
-    <div className="min-h-screen bg-black text-white font-press flex flex-col">
-      {/* Header */}
-      <div className="flex justify-between items-center p-4 border-b border-white">
-        <h1 className="text-2xl">RECYCLE BIN</h1>
-        <button
-          onClick={() => window.history.back()}
-          className="flex items-center bg-white text-black px-3 py-1 text-sm hover:bg-gray-200"
-        >
-          <img src={BackIcon} alt="back" className="w-6 h-6" />
-          <span className="ml-2 hidden md:inline">Back</span>
-        </button>
+    <div className="min-h-screen bg-black text-white font-press flex flex-col p-4 md:p-6 overflow-hidden">
+      <style>
+        {`
+          .font-press { font-family: 'Press Start 2P', monospace; }
+          ::-webkit-scrollbar { width: 8px; height: 8px; }
+          ::-webkit-scrollbar-track { background: #111; border-radius: 4px; }
+          ::-webkit-scrollbar-thumb { background: #333; border-radius: 4px; }
+          ::-webkit-scrollbar-thumb:hover { background: #555; }
+        `}
+      </style>
+
+      {/* --- HEADER --- */}
+      <div className="w-full grid grid-cols-[1fr_auto_1fr] items-center mb-6 z-40 relative border-b border-white/10 pb-6">
+        {/* Left: Back Button */}
+        <div className="justify-self-start">
+            <button 
+                onClick={() => navigate(-1)} 
+                className="px-6 py-2 rounded-full border border-white/20 hover:bg-white/10 transition group flex items-center justify-center"
+            >
+                <img src={BackIcon} className="w-4 h-4 filter invert group-hover:scale-110 transition" alt="Back" />
+            </button>
+        </div>
+        
+        {/* Center: Title */}
+        <h1 className="hidden md:block text-2xl tracking-widest text-white">RECYCLE BIN</h1>
+        
+        {/* Mobile: Title */}
+        <div className="md:hidden flex justify-center">
+             <span className="text-xl tracking-widest">BIN</span>
+        </div>
+        
+        {/* Right: Spacer */}
+        <div className="justify-self-end"></div>
       </div>
 
-      {/* Main Content */}
-      <div className="flex-1 p-4 overflow-y-auto">
-        {loading ? (
-          <p>Loading bin...</p>
-        ) : items.length === 0 ? (
-          <div className="flex h-full items-center justify-center text-gray-500">
-            Bin is empty
-          </div>
-        ) : (
-          <div className="space-y-2">
-            {items.map((item) => (
-              <div
-                key={item.fullPath}
-                className="flex justify-between items-center bg-gray-900 border border-white p-3 hover:bg-gray-800 transition"
-              >
-                {/* Name & Icon */}
-                <div className="flex items-center truncate flex-1 mr-4">
-                    {item.isFolder ? (
-                         
-
-
-
-                        <img src={FolderIcon} alt="folder" className="w-5 h-5 mr-3 filter invert opacity-50" />
-                    ) : (
-                         
-
-
-
-                        <div className="w-5 h-5 mr-3 flex items-center justify-center text-gray-500 text-xs border border-gray-600 rounded-sm">
-                            
+      {/* --- MAIN CONTAINER --- */}
+      <div className="flex flex-1 flex-col overflow-hidden gap-6">
+        
+        {/* File List Panel */}
+        <div className="w-full flex-1 rounded-[20px] border border-white/20 p-4 overflow-y-auto bg-[#0a0a0a] relative">
+          
+          {loading ? (
+            <div className="flex h-full items-center justify-center opacity-50">
+               <p className="text-sm animate-pulse">Loading bin...</p>
+            </div>
+          ) : items.length === 0 ? (
+            <div className="flex h-full items-center justify-center opacity-30">
+               <p className="text-sm">Bin is empty</p>
+            </div>
+          ) : (
+            <div className="flex flex-col gap-3">
+               {items.map((item) => (
+                 <div
+                   key={item.fullPath}
+                   className="flex items-center justify-between p-3 rounded-xl border border-white/5 bg-[#111] hover:bg-[#1a1a1a] hover:border-white/20 transition-all group"
+                 >
+                    {/* Icon & Name */}
+                    <div className="flex items-center gap-4 flex-1 overflow-hidden">
+                        <div className="w-10 h-10 rounded-lg bg-white/5 flex items-center justify-center border border-white/10 shrink-0">
+                            {item.isFolder ? (
+                                <img src={FolderIcon} alt="folder" className="w-5 h-5 filter invert opacity-70" />
+                            ) : (
+                                <div className="text-[10px] text-gray-500 font-bold  rounded px-1">XO</div>
+                            )}
                         </div>
-                    )}
-                    <span className="truncate text-gray-300" title={item.name}>
-                        {item.name}
-                    </span>
-                </div>
+                        <span className="truncate text-xs md:text-sm text-gray-300 font-sans tracking-wide group-hover:text-white transition-colors font-press">
+                            {item.name}
+                        </span>
+                    </div>
 
-                {/* Actions */}
-                <div className="flex items-center gap-2">
-                  <button
-                    onClick={() => handleDownload(item)}
-                    disabled={processing}
-                    className="p-2 hover:bg-blue-900 rounded border border-transparent hover:border-blue-500 transition disabled:opacity-30"
-                    title="Download / Restore"
-                  >
-                    <img src={DownloadIcon} alt="Download" className="w-5 h-5 filter invert" />
-                  </button>
-                  
-                  <button
-                    onClick={() => handlePermanentDelete(item)}
-                    disabled={processing}
-                    className="p-2 hover:bg-red-900 rounded border border-transparent hover:border-red-500 transition disabled:opacity-30"
-                    title="Delete Permanently"
-                  >
-                    <img src={DeleteIcon} alt="Delete" className="w-5 h-5 filter invert" />
-                  </button>
-                </div>
-              </div>
-            ))}
-          </div>
-        )}
+                    {/* Actions */}
+                    <div className="flex items-center gap-2 pl-2">
+                        <button
+                            onClick={() => handleDownload(item)}
+                            disabled={processing}
+                            className="p-2 rounded-full hover:bg-blue-500/20 border border-transparent hover:border-blue-500 transition disabled:opacity-30 group/btn"
+                            title="Download / Restore"
+                        >
+                            <img src={DownloadIcon} alt="Restore" className="w-4 h-4 filter invert group-hover/btn:scale-110 transition" />
+                        </button>
+                        
+                        <button
+                            onClick={() => handlePermanentDelete(item)}
+                            disabled={processing}
+                            className="p-2 rounded-full hover:bg-red-500/20 border border-transparent hover:border-red-500 transition disabled:opacity-30 group/btn"
+                            title="Delete Permanently"
+                        >
+                            <img src={DeleteIcon} alt="Delete" className="w-4 h-4 filter invert group-hover/btn:scale-110 transition" />
+                        </button>
+                    </div>
+                 </div>
+               ))}
+            </div>
+          )}
+        </div>
       </div>
 
       {/* Processing Indicator */}
       {processing && (
-        <div className="fixed bottom-5 right-5 bg-blue-600 text-white px-4 py-2 rounded shadow-lg animate-pulse">
-          {statusMsg || "Processing..."}
+        <div className="fixed bottom-8 left-8 backdrop-blur-md border border-white/20 rounded-xl p-4 shadow-2xl animate-fade-in bg-black/80 z-50">
+           <div className="flex items-center gap-3">
+              <div className="w-3 h-3 rounded-full bg-blue-500 animate-pulse"></div>
+              <span className="text-xs font-bold tracking-wide text-white">{statusMsg || "Processing..."}</span>
+           </div>
         </div>
       )}
     </div>
