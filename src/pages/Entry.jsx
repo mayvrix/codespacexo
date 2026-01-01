@@ -8,8 +8,72 @@ import {
   GoogleAuthProvider,
   signInWithPopup
 } from "firebase/auth";
-import Logo from "../assets/xo.png";
-import Hyperspeed from '../comps/hyperspeed';
+import Logo from "../assets/xoMod.png";
+import ColorBends from '../comps/bends';
+import GlassSurface from '../comps/glass';
+import GlassSurfaceXO from '../comps/glassx';
+
+// --- Custom Hook to Detect Mobile Device ---
+const useIsMobile = () => {
+  const [isMobile, setIsMobile] = useState(false);
+
+  useEffect(() => {
+    const checkIsMobile = () => {
+      setIsMobile(window.innerWidth < 768); // 768px is standard tablet/mobile breakpoint
+    };
+
+    checkIsMobile();
+    window.addEventListener("resize", checkIsMobile);
+    return () => window.removeEventListener("resize", checkIsMobile);
+  }, []);
+
+  return isMobile;
+};
+
+// --- Custom Hook to Detect Lag/Low Performance ---
+const usePerformanceMonitor = () => {
+  const [isLowSpec, setIsLowSpec] = useState(false);
+
+  useEffect(() => {
+    let frameId;
+    let lastTime = performance.now();
+    let lagCounter = 0;
+    
+    // We delay monitoring by 1 second to ignore initial page load stutter
+    const startMonitoring = setTimeout(() => {
+      const checkFPS = () => {
+        const now = performance.now();
+        const delta = now - lastTime;
+        lastTime = now;
+
+        // If a frame takes longer than 50ms (meaning FPS is below 20)
+        if (delta > 50) {
+          lagCounter++;
+        } else {
+          // Slowly decrease counter if frames are smooth
+          lagCounter = Math.max(0, lagCounter - 0.5);
+        }
+
+        // If we hit 15 "lag points", assume the PC is struggling and disable animation
+        if (lagCounter > 15) {
+          setIsLowSpec(true);
+          return; // Stop the loop
+        }
+
+        frameId = requestAnimationFrame(checkFPS);
+      };
+
+      frameId = requestAnimationFrame(checkFPS);
+    }, 1000);
+
+    return () => {
+      clearTimeout(startMonitoring);
+      cancelAnimationFrame(frameId);
+    };
+  }, []);
+
+  return isLowSpec;
+};
 
 // --- Helper Components for Icons ---
 const EyeIcon = ({ className }) => (
@@ -40,48 +104,11 @@ const toTitleCase = (str) => {
   );
 };
 
-const hyperspeedOptions = {
-  onSpeedUp: () => {},
-  onSlowDown: () => {},
-  distortion: 'deepDistortion',
-  length: 400,
-  roadWidth: 9,
-  islandWidth: 2,
-  lanesPerRoad: 3,
-  fov: 90,
-  fovSpeedUp: 150,
-  speedUp: 2,
-  carLightsFade: 0.4,
-  totalSideLightSticks: 50,
-  lightPairsPerRoadWay: 50,
-  shoulderLinesWidthPercentage: 0.05,
-  brokenLinesWidthPercentage: 0.1,
-  brokenLinesLengthPercentage: 0.5,
-  lightStickWidth: [0.12, 0.5],
-  lightStickHeight: [1.3, 1.7],
-  movingAwaySpeed: [60, 80],
-  movingCloserSpeed: [-120, -160],
-  carLightsLength: [400 * 0.05, 400 * 0.15],
-  carLightsRadius: [0.05, 0.14],
-  carWidthPercentage: [0.3, 0.5],
-  carShiftX: [-0.2, 0.2],
-  carFloorSeparation: [0.05, 1],
-  colors: {
-    roadColor: 0x080808,
-    islandColor: 0x0a0a0a,
-    background: 0x000000,
-    shoulderLines: 0x131318,
-    brokenLines: 0x131318,
-    leftCars: [0xff322f, 0xa33010, 0xa81508],
-    rightCars: [0xfdfdf0, 0xf3dea0, 0xe2bb88],
-    sticks: 0xfdfdf0
-  }
-};
-
-const MemoizedHyperspeed = React.memo(Hyperspeed);
-
 export default function Entry() {
   const navigate = useNavigate();
+  const isMobile = useIsMobile();
+  const isLowPerf = usePerformanceMonitor(); // Check for lag
+
   const [users, setUsers] = useState([]);
   const [selectedIndex, setSelectedIndex] = useState(0);
   const [confirmedUser, setConfirmedUser] = useState(null);
@@ -215,7 +242,6 @@ export default function Entry() {
         }
     } catch (err) {
         console.error("Google Login Error:", err);
-        // Handle specific error codes if needed
         if (err.code !== 'auth/cancelled-popup-request' && err.code !== 'auth/popup-closed-by-user') {
              setError("Google login failed.");
         }
@@ -251,8 +277,24 @@ export default function Entry() {
   return (
     <div className="relative min-h-screen w-full bg-black overflow-hidden font-press">
       {/* Background Layer */}
-      <div className="absolute inset-0 z-0 pointer-events-none">
-        <MemoizedHyperspeed effectOptions={hyperspeedOptions} />
+      <div className="absolute inset-0 w-full h-full">
+        {isMobile || isLowPerf ? (
+            <div className="w-full h-full bg-black" />
+        ) : (
+            <div className="w-full h-full opacity-80">
+                <ColorBends
+                    colors={["#00fa08ff", "#561becff", "#ff0000ff"]}
+                    rotation={-6}
+                    speed={0.53}
+                    scale={1.2}
+                    frequency={1}
+                    warpStrength={1}
+                    mouseInfluence={1}
+                    parallax={0.5}
+                    noise={0.1}
+                />
+            </div>
+        )}
       </div>
 
       <style>
@@ -266,150 +308,228 @@ export default function Entry() {
             height: 1.25rem;
             animation: spin 1s linear infinite;
           }
+          /* Custom Triangle Arrow (Updated: Larger, Flipped to point left) */
+          .arrow-selection {
+             width: 0; 
+             height: 0; 
+             border-top: 10px solid transparent;    /* Larger */
+             border-bottom: 10px solid transparent; /* Larger */
+             border-right: 14px solid white;        /* Flipped to point Left */
+          }
+          /* Modern Desktop Scrollbar */
+          ::-webkit-scrollbar {
+            width: 8px;
+          }
+          ::-webkit-scrollbar-track {
+            background: transparent;
+          }
+          ::-webkit-scrollbar-thumb {
+            background: rgba(255, 255, 255, 0.3);
+            border-radius: 4px;
+            border: 2px solid transparent; /* padding around thumb */
+            background-clip: content-box;
+          }
+          ::-webkit-scrollbar-thumb:hover {
+            background: rgba(255, 255, 255, 0.5);
+            background-clip: content-box;
+          }
         `}
       </style>
 
       {/* Content Layer */}
-      <div className="relative z-10 flex flex-col items-center justify-center min-h-screen p-4 pb-16 text-white">
-        <div className="flex flex-col items-center mb-6">
+      <div className="relative z-10 flex flex-col items-center justify-center min-h-screen p-4 pb-24 text-white">
+        
+        {/* Header Section */}
+        <div className="flex flex-col items-center mb-2">
           <img
             src={Logo}
             alt="XO Logo"
-            className="w-24 h-24 md:w-32 md:h-32 mb-0 object-contain"
+            className="w-32 h-32 md:w-40 md:h-40 mb-0 object-contain"
           />
-          <h1 className="text-2xl md:text-4xl tracking-wider text-center">
-            CODESPACEXO
-          </h1>
         </div>
 
-        <div className="w-full max-w-md bg-black/40 backdrop-blur-sm p-4 rounded-lg">
-          {!confirmedUser ? (
-            <>
-                {/* --- ERROR MESSAGE AREA (for Google Login failures) --- */}
-               {error && !confirmedUser && (
-                <p className="text-red-400 text-xs mb-2 text-center bg-black/50 p-1 border border-red-500">
-                  {error}
-                </p>
-              )}
-
-              <input
-                type="text"
-                placeholder="SEARCH USER..."
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                className="font-press border-2 border-white p-2 w-full text-left outline-none focus:bg-gray-800 mb-2 text-sm bg-black text-white"
-              />
-              <div
-                ref={listRef}
-                className="border-2 border-white h-52 overflow-y-auto relative scrollbar-thin scrollbar-thumb-white scrollbar-track-black bg-black/60"
-              >
-                {filteredUsers.length > 0 ? (
-                  filteredUsers.map((user, index) => (
-                    <div
-                      key={user.uid}
-                      onClick={() => setConfirmedUser(user)}
-                      className={`p-2 cursor-pointer select-none transition-colors ${
-                        selectedIndex === index ? "bg-white text-black" : "hover:bg-white/10"
-                      }`}
-                    >
-                      {user.name}
-                    </div>
-                  ))
-                ) : (
-                  <p className="p-2">
-                    {users.length === 0 ? "Loading..." : "No users found."}
-                  </p>
-                )}
-              </div>
-              <div className="mt-5 flex justify-between gap-2">
-                <button
-                  onClick={() => navigate("/signup")}
-                  className="bg-white text-black px-4 py-2 text-sm hover:invert transition mr-auto"
-                >
-                  SIGN UP
-                </button>
+        {/* --- MAIN INTERFACE: 4 GLASS SURFACES LAYOUT --- */}
+        {!confirmedUser ? (
+            /* WIDENED CONTAINER: max-w-md */
+            <div className="w-full max-w-md flex flex-col gap-4">
                 
-                {/* --- GOOGLE LOGIN BUTTON --- */}
-                <button
-                    onClick={handleGoogleLogin}
-                    className="bg-white text-black w-[38px] h-[38px] flex items-center justify-center hover:bg-gray-200 transition"
-                    title="Log in with Google"
+                {/* 1. SEARCH CAPSULE (Top) */}
+                <GlassSurface
+                   className="w-full px-6 py-4"
+                   borderRadius={9999}
+                   borderWidth={0.02}
+                   distortionScale={-180}
+                   opacity={0.8}
+                   backgroundOpacity={0.1}
                 >
-                    <GoogleIcon className="w-5 h-5" />
-                </button>
-
-                <button
-                  onClick={() => navigate("/notice")}
-                  className="animated-gradient w-[38px] h-[38px] flex items-center justify-center text-sm hover:brightness-110 transition text-white"
-                >
-                  ?
-                </button>
-              </div>
-            </>
-          ) : (
-            <div className="border-2 border-white p-6 flex flex-col items-center bg-black/60">
-              {resetMessage ? (
-                <p className="text-center text-green-400">{resetMessage}</p>
-              ) : (
-                <>
-                  <p className="mb-4 text-center">{confirmedUser.name}</p>
-                  <div className="relative w-full mb-2">
                     <input
-                      type={showPassword ? "text" : "password"}
-                      placeholder="PASSWORD"
-                      autoFocus
-                      value={password}
-                      onChange={(e) => setPassword(e.target.value)}
-                      className="font-press border-2 border-white p-2 w-full text-center outline-none focus:bg-gray-800 bg-black text-white"
+                      type="text"
+                      placeholder="Search User Here"
+                      value={searchQuery}
+                      onChange={(e) => setSearchQuery(e.target.value)}
+                      className="font-doto font-bold bg-transparent border-none w-full text-left outline-none text-white placeholder-white text-lg"
                     />
-                    <button
-                      type="button"
-                      onClick={() => setShowPassword(!showPassword)}
-                      className="absolute inset-y-0 right-0 flex items-center pr-3"
-                    >
-                      {showPassword ? (
-                        <EyeSlashIcon className="h-5 w-5 text-gray-300" />
-                      ) : (
-                        <EyeIcon className="h-5 w-5 text-gray-300" />
+                </GlassSurface>
+
+                {/* 2. USER LIST CONTAINER (Middle) */}
+                <GlassSurface
+                   className="w-full py-4" 
+                   borderRadius={24}
+                   borderWidth={0.02}
+                   distortionScale={-180}
+                   opacity={0.8}
+                   backgroundOpacity={0.1}
+                >
+                      {error && (
+                        <p className="text-red-400 text-xs mb-2 text-center border border-red-500 rounded p-1">
+                            {error}
+                        </p>
                       )}
-                    </button>
-                  </div>
+                      
+                      {/* Reduced padding to px-6 (a little gap, not fully close to edge) */}
+                      <div
+                        ref={listRef}
+                        className="h-52 overflow-y-auto px-4"
+                      >
+                        {filteredUsers.length > 0 ? (
+                          filteredUsers.map((user, index) => (
+                            <div
+                              key={user.uid}
+                              onClick={() => setConfirmedUser(user)}
+                              className={`w-full p-2 mb-1 rounded-xl cursor-pointer select-none transition-all
+  flex items-center justify-between ${
+    selectedIndex === index
+      ? "bg-white/20"
+      : "hover:bg-white/5 opacity-70"
+  }`}
+                            >
+                              {/* Left Aligned Text */}
+                              <span className="text-md text-left flex-1">{user.name}</span>
+                              
+                              {/* Arrow on the Right, pointing Left */}
+                              {selectedIndex === index && (
+                                  <div className="arrow-selection"></div>
+                              )}
+                            </div>
+                          ))
+                        ) : (
+                          <div className="h-full flex items-center justify-center text-gray-400">
+                             {users.length === 0 ? "Loading..." : "No users found"}
+                          </div>
+                        )}
+                      </div>
+                </GlassSurface>
 
-                  {error && (
-                    <p className="text-red-400 text-xs mb-2 text-center">
-                      {error}
-                    </p>
-                  )}
+                {/* BOTTOM ROW (Two Capsules) - Space Between */}
+                <div className="flex justify-between items-center w-full h-[60px]">
+                    
+                    {/* 3. SIGN UP PILL (Bottom Left) - WIDER (70%) */}
+                    <div className="w-[50%] h-full cursor-pointer" onClick={() => navigate("/signup")}>
+                        <GlassSurfaceXO
+                            className="w-full h-full flex items-center justify-center py-2"
+                            borderRadius={9999}
+                            borderWidth={0.02}
+                            distortionScale={-180}
+                            opacity={0.8}
+                            backgroundOpacity={0.1}
+                        >
+                            <span className="font-doto font-bold text-xl tracking-wide hover:scale-105 transition-transform">SIGN UP</span>
+                        </GlassSurfaceXO>
+                    </div>
 
-                  {showResetLink && (
-                    <button
-                      onClick={handleForgotPassword}
-                      className="text-xs text-blue-400 hover:underline mb-4"
-                    >
-                      Forgot Password?
-                    </button>
-                  )}
+                    {/* 4. GOOGLE BUTTON (Bottom Right - Circular) - Aspect Square */}
+                    <div className="aspect-square h-full cursor-pointer" onClick={handleGoogleLogin}>
+                        <GlassSurfaceXO
+                            className="w-full h-full flex items-center justify-center py-2"
+                            borderRadius={9999}
+                            borderWidth={0.02}
+                            distortionScale={-180}
+                            opacity={0.8}
+                            backgroundOpacity={0.1}
+                        >
+                             <GoogleIcon className="w-6 h-6 hover:scale-110 transition-transform" />
+                        </GlassSurfaceXO>
+                    </div>
 
-                  <div className="flex justify-between w-full mt-2">
-                    <button
-                      onClick={handleBack}
-                      className="bg-white text-black px-4 py-2 text-sm"
-                    >
-                      BACK
-                    </button>
-                    <button
-                      onClick={handleLogin}
-                      disabled={loading}
-                      className="bg-white text-black px-4 py-2 text-sm flex items-center justify-center disabled:opacity-75"
-                    >
-                      {loading ? <div className="spinner"></div> : "ENTER"}
-                    </button>
-                  </div>
-                </>
-              )}
+                </div>
+
             </div>
-          )}
-        </div>
+        ) : (
+            // --- PASSWORD CONFIRMATION VIEW ---
+            /* WIDENED CONTAINER: max-w-lg */
+            <GlassSurface
+                className="w-full max-w-lg p-8"
+                borderRadius={32}
+                borderWidth={0.02}
+                distortionScale={-180}
+                opacity={0.8}
+                backgroundOpacity={0.1}
+            >
+                <div className="flex flex-col items-center w-full">
+                  {resetMessage ? (
+                    <p className="text-center text-green-400">{resetMessage}</p>
+                  ) : (
+                    <>
+                      <h2 className="text-2xl mb-6 text-center">{confirmedUser.name}</h2>
+                      
+                      <div className="relative w-full mb-4">
+                        <input
+                          type={showPassword ? "text" : "password"}
+                          placeholder="PASSWORD"
+                          autoFocus
+                          value={password}
+                          onChange={(e) => setPassword(e.target.value)}
+                          className="font-press bg-black/40 border-2 border-white/50 rounded-xl p-3 w-full text-center outline-none focus:bg-black/60 focus:border-white text-white transition-all"
+                        />
+                        <button
+                          type="button"
+                          onClick={() => setShowPassword(!showPassword)}
+                          className="absolute inset-y-0 right-0 flex items-center pr-3"
+                        >
+                          {showPassword ? (
+                            <EyeSlashIcon className="h-5 w-5 text-gray-300" />
+                          ) : (
+                            <EyeIcon className="h-5 w-5 text-gray-300" />
+                          )}
+                        </button>
+                      </div>
+
+                      {error && (
+                        <p className="text-red-400 text-xs mb-4 text-center">
+                          {error}
+                        </p>
+                      )}
+
+                      {showResetLink && (
+                        <button
+                          onClick={handleForgotPassword}
+                          className="text-xs text-blue-300 hover:text-white hover:underline mb-6 transition-colors"
+                        >
+                          Forgot Password?
+                        </button>
+                      )}
+
+                      <div className="flex justify-between w-full gap-4 mt-2">
+                        <button
+                          onClick={handleBack}
+                          className="flex-1 bg-transparent border-2 border-white/30 text-white rounded-xl py-3 text-sm hover:bg-white/10 transition"
+                        >
+                          BACK
+                        </button>
+                        <button
+                          onClick={handleLogin}
+                          disabled={loading}
+                          className="flex-1 bg-white text-black rounded-xl py-3 text-sm font-bold hover:bg-gray-200 transition flex items-center justify-center disabled:opacity-75"
+                        >
+                          {loading ? <div className="spinner !border-black !border-t-transparent"></div> : "ENTER"}
+                        </button>
+                      </div>
+                    </>
+                  )}
+                </div>
+            </GlassSurface>
+        )}
+
       </div>
     </div>
   );
