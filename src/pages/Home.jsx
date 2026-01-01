@@ -80,6 +80,7 @@ const parseDateFromName = (name) => {
 
 export default function Home() {
   const [currentTheme, setCurrentTheme] = useState(themes[0]); // Default theme
+  const [isMobile, setIsMobile] = useState(window.innerWidth < 768);
 
   // --- INTRO / SPLASH SCREEN STATE ---
   const [showIntro, setShowIntro] = useState(true); // Is the intro visible?
@@ -1515,6 +1516,14 @@ const handleDownloadFile = async (file) => {
     }
   };
 
+  useEffect(() => {
+    const handleResize = () => {
+        setIsMobile(window.innerWidth < 768);
+    };
+    window.addEventListener("resize", handleResize);
+    return () => window.removeEventListener("resize", handleResize);
+  }, []);
+
   // ++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
   
 return (
@@ -1540,6 +1549,13 @@ return (
           @keyframes fade-in { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
           .animate-fade-in { animation: fade-in 0.3s ease-out forwards; }
           
+          /* Ensure gradient border works */
+          .animated-gradient-border {
+            background: linear-gradient(270deg, #3b82f6, #8b5cf6, #ec4899);
+            background-size: 200% 200%;
+            animation: gradient-xy 6s ease infinite;
+          }
+
           .action-btn:hover::after {
              content: attr(data-tooltip);
              position: absolute;
@@ -1559,6 +1575,7 @@ return (
           }
         `}
       </style>
+
       {/* --- INTRO / SPLASH SCREEN --- */}
       {showIntro && (
         <div 
@@ -1584,133 +1601,137 @@ return (
       )}
 
       {/* --- HEADER --- */}
-      <div className="flex justify-between items-center mb-6 z-40 relative">
+      <div className="w-full flex justify-between items-center mb-6 z-50 relative shrink-0">
         
-        {/* Logo Section */}
-        <h1 className="text-xl md:text-3xl tracking-widest cursor-pointer font-bold" style={{ color: currentTheme.accent }} onClick={() => navigate("/")}>
-          {/* Mobile Logo */}
-        <img 
-        src={XOIcon} 
-        alt="XO" 
-        className="md:hidden h-14 w-auto" 
-        style={{ filter: isDarkTheme ? 'none' : 'invert(1)' }} 
-        />          {/* Desktop Text */}
-          <span className="hidden md:inline">CODESPACEXO</span>
+        {/* Logo Section (Left) */}
+        <h1 className="text-xl md:text-3xl tracking-widest cursor-pointer flex items-center gap-3" style={{ color: currentTheme.accent }} onClick={() => navigate("/")}>
+          {/* Show Image only on Mobile */}
+          {isMobile && (
+            <img 
+                src={XOIcon} 
+                alt="XO" 
+                className="h-14 w-auto" 
+                style={{ filter: isDarkTheme ? 'none' : 'invert(1)' }} 
+            />
+          )}
+          {/* Show Text only on Desktop */}
+          {!isMobile && <span>CODESPACEXO</span>}
         </h1>
 
-        {/* Desktop Menu - Profile + Pills */}
-        <div className="hidden md:flex items-center gap-4">
-          
-          {/* Profile Button */}
-          <button 
-            onClick={() => navigate("/control")} 
-            className="w-14 h-14 rounded-full flex items-center justify-center border border-transparent hover:opacity-80 transition" 
-            style={{ backgroundColor: currentTheme.panel }}
-          >
-             <img src={UserIcon} className="w-6 h-6" style={{ filter: iconFilter }} alt="profile" />
-          </button>
-
-         {/* Animated Gradient Wrapper */}
-<div className="animated-gradient-border rounded-full p-[2px]">
-  <button 
-    onClick={() => navigate("/public")} 
-    className="px-6 py-4 rounded-full transition text-xs tracking-widest font-bold hover:opacity-80 h-full w-full" 
-    style={{ backgroundColor: currentTheme.panel, color: currentTheme.text }}
-  >
-    PUBLIC
-  </button>
-</div>
-          <button 
-            onClick={() => navigate("/bin")} 
-            className="px-6 py-4 rounded-full border border-transparent transition text-xs tracking-widest font-bold hover:bg-opacity-80" 
-            style={{ backgroundColor: currentTheme.panel, color: currentTheme.text }}
-          >
-            BIN
-          </button>
-          <button 
-            onClick={handleLogout} 
-            className="px-6 py-4 rounded-full border border-transparent hover:border-red-500 hover:text-red-400 transition text-xs tracking-widest font-bold" 
-            style={{ backgroundColor: currentTheme.panel, color: currentTheme.text }}
-          >
-            EXIT
-          </button>
-        </div>
-
-        {/* Mobile Right Side Group */}
-        <div className="flex md:hidden gap-3">
-            {/* Mobile Profile Button */}
+        {/* Desktop Menu - Profile + 3 Pills (Right) - Rendered only if !isMobile */}
+        {!isMobile && (
+            <div className="flex items-center gap-4">
+            {/* Profile Button */}
             <button 
-                onClick={() => navigate("/control")}
-                className="px-4 py-4 rounded-full hover:opacity-80 transition flex items-center justify-center" 
+                onClick={() => navigate("/control")} 
+                className="w-14 h-14 rounded-full flex items-center justify-center border border-transparent hover:opacity-80 transition" 
                 style={{ backgroundColor: currentTheme.panel }}
             >
                 <img src={UserIcon} className="w-6 h-6" style={{ filter: iconFilter }} alt="profile" />
             </button>
 
-            {/* Mobile Hamburger */}
+            {/* Public Button (Gradient Wrapper) */}
+            <div className="animated-gradient-border rounded-full p-[2px]">
+                <button 
+                onClick={() => navigate("/public")} 
+                className="px-6 py-4 rounded-full transition text-xs tracking-widest font-bold hover:opacity-80 h-full w-full" 
+                style={{ backgroundColor: currentTheme.panel, color: currentTheme.text }}
+                >
+                PUBLIC
+                </button>
+            </div>
+
+            {/* Bin Button */}
             <button 
-                className="px-4 py-4 rounded-full hover:opacity-80 transition" 
-                style={{ backgroundColor: currentTheme.panel, color: currentTheme.text }} 
-                onClick={(e) => { e.stopPropagation(); setIsMenuOpen(!isMenuOpen); }}
+                onClick={() => navigate("/bin")} 
+                className="px-6 py-4 rounded-full border border-transparent transition text-xs tracking-widest font-bold hover:bg-opacity-80" 
+                style={{ backgroundColor: currentTheme.panel, color: currentTheme.text }}
             >
-                 <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-6 h-6">
-                   <path strokeLinecap="round" strokeLinejoin="round" d="M3.75 6.75h16.5M3.75 12h16.5m-16.5 5.25h16.5" />
-                 </svg>
+                BIN
             </button>
-        </div>
 
-        {isMenuOpen && (
-  <>
-    {/* Backdrop */}
-    <div 
-      className="fixed inset-0 bg-black/50 z-40 md:hidden" 
-      onClick={() => setIsMenuOpen(false)}
-    />
-    
-    {/* Sidebar */}
-    <div 
-      className="fixed inset-y-0 right-0 w-64 z-50 flex flex-col items-center py-12 md:hidden shadow-2xl transition-transform duration-300 ease-out"
-      style={{ backgroundColor: currentTheme.panel, borderLeft: `1px solid ${currentTheme.border}` }}
-    >
-      {/* Title */}
-      <h2 className="text-2xl tracking-widest mb-auto" style={{ color: currentTheme.text }}>CSXO</h2>
+            {/* Exit Button */}
+            <button 
+                onClick={handleLogout} 
+                className="px-6 py-4 rounded-full border border-transparent hover:border-red-500 hover:text-red-400 transition text-xs tracking-widest font-bold" 
+                style={{ backgroundColor: currentTheme.panel, color: currentTheme.text }}
+            >
+                EXIT
+            </button>
+            </div>
+        )}
 
-      {/* Buttons Container */}
-      <div className="flex flex-col gap-4 w-full px-8 pb-8">
-        
-        {/* Public Button (Gradient Border) */}
-        <div className="animated-gradient-border rounded-full p-[2px] w-full">
-          <button 
-            onClick={() => { navigate("/public"); setIsMenuOpen(false); }}
-            className="w-full py-4 rounded-full font-bold tracking-widest text-sm hover:opacity-80 transition"
-            style={{ backgroundColor: currentTheme.panel, color: currentTheme.text }}
-          >
-            Public
-          </button>
-        </div>
+        {/* Mobile Right Side Group (Profile + Hamburger) - Rendered only if isMobile */}
+        {isMobile && (
+            <div className="flex gap-3">
+                {/* Mobile Profile */}
+                <button 
+                    onClick={() => navigate("/control")}
+                    className="px-4 py-4 rounded-full hover:opacity-80 transition flex items-center justify-center" 
+                    style={{ backgroundColor: currentTheme.panel }}
+                >
+                    <img src={UserIcon} className="w-6 h-6" style={{ filter: iconFilter }} alt="profile" />
+                </button>
 
-        {/* Bin Button */}
-        <button 
-          onClick={() => { navigate("/bin"); setIsMenuOpen(false); }}
-          className="w-full py-4 rounded-full border font-bold tracking-widest text-sm hover:bg-white/10 transition"
-          style={{ borderColor: currentTheme.text, color: currentTheme.text }}
-        >
-          Bin
-        </button>
+                {/* Mobile Hamburger */}
+                <button 
+                    className="px-4 py-4 rounded-full hover:opacity-80 transition" 
+                    style={{ backgroundColor: currentTheme.panel, color: currentTheme.text }} 
+                    onClick={(e) => { e.stopPropagation(); setIsMenuOpen(!isMenuOpen); }}
+                >
+                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-6 h-6">
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M3.75 6.75h16.5M3.75 12h16.5m-16.5 5.25h16.5" />
+                    </svg>
+                </button>
+            </div>
+        )}
 
-        {/* Exit Button */}
-        <button 
-          onClick={handleLogout}
-          className="w-full py-4 rounded-full border font-bold tracking-widest text-sm hover:bg-red-500/20 transition"
-          style={{ borderColor: currentTheme.text, color: currentTheme.text }}
-        >
-          Exit
-        </button>
+        {/* Mobile Menu Sidebar */}
+        {isMenuOpen && isMobile && (
+          <>
+            {/* Backdrop */}
+            <div 
+              className="fixed inset-0 bg-black/80 z-[300] backdrop-blur-sm transition-opacity"
+              onClick={() => setIsMenuOpen(false)}
+            />
+            
+            {/* Sidebar */}
+            <div 
+              className="fixed inset-y-0 right-0 w-64 z-[301] flex flex-col items-center py-12 shadow-2xl animate-fade-in"
+              style={{ backgroundColor: currentTheme.panel, borderLeft: `1px solid ${currentTheme.border}` }}
+            >
+              <h2 className="text-xl tracking-[0.3em] font-bold mb-auto mt-2" style={{ color: currentTheme.text }}>MENU</h2>
 
-      </div>
-    </div>
-  </>
-)}
+              <div className="flex flex-col gap-5 w-full px-8 pb-12 mt-auto">
+                <div className="animated-gradient-border block rounded-full p-[2px] w-full">
+                  <button 
+                    onClick={() => { navigate("/public"); setIsMenuOpen(false); }}
+                    className="w-full py-3 rounded-full font-bold tracking-widest text-xs hover:opacity-80 transition h-full bg-black"
+                    style={{ backgroundColor: currentTheme.panel, color: currentTheme.text }}
+                  >
+                    Public
+                  </button>
+                </div>
+
+                <button 
+                  onClick={() => { navigate("/bin"); setIsMenuOpen(false); }}
+                  className="w-full py-3 rounded-full border font-bold tracking-widest text-xs hover:bg-white/10 transition"
+                  style={{ borderColor: currentTheme.text, color: currentTheme.text }}
+                >
+                  Bin
+                </button>
+
+                <button 
+                  onClick={handleLogout}
+                  className="w-full py-3 rounded-full border font-bold tracking-widest text-xs hover:bg-white/10 transition"
+                  style={{ borderColor: currentTheme.text, color: currentTheme.text }}
+                >
+                  Exit
+                </button>
+              </div>
+            </div>
+          </>
+        )}
       </div>
 
       {/* --- MAIN OS CONTAINER --- */}
@@ -1718,6 +1739,7 @@ return (
         ref={containerRef}
         className="os-container flex-1 border rounded-[20px] relative overflow-hidden os-bg-layer"
         style={{ backgroundColor: currentTheme.container, borderColor: currentTheme.border }}
+        // ... (Keep your existing drag events here: onDragOver, onDrop, etc.) ...
         onDragOver={(e) => { e.preventDefault(); e.stopPropagation(); setDragging(true); }}
         onDragEnter={(e) => { e.preventDefault(); e.stopPropagation(); setDragging(true); }}
         onDragLeave={(e) => { 
@@ -1753,30 +1775,32 @@ return (
           </div>
         )}
 
+        {/* --- FIXED BACK BUTTON (Moved Outside Scroll Area) --- */}
+        {currentFolder && (
+          <div className="absolute top-0 left-0 w-full p-6 z-20 pointer-events-none">
+              <div 
+                onClick={(e) => { e.stopPropagation(); handleBack(); }}
+                className="inline-flex items-center justify-center px-8 py-3 rounded-full cursor-pointer transition hover:opacity-80 group border pointer-events-auto shadow-lg"
+                style={{ 
+                    backgroundColor: currentTheme.border,
+                    borderColor: currentTheme.border
+                }}
+              >
+                <img 
+                  src={BackLeftIcon} 
+                  className="w-4 h-4 transition group-hover:scale-110" 
+                  style={{ filter: iconFilter }} 
+                  alt="Back" 
+                />
+              </div>
+          </div>
+        )}
+
         {/* --- CONTENT AREA (Grid vs List) --- */}
-<div className="absolute inset-0 p-6 overflow-auto z-10 os-bg-layer">            
-            {/* Back Button */}
-{currentFolder && (
-  <div className="mb-4">
-      <div 
-        onClick={(e) => { e.stopPropagation(); handleBack(); }}
-        // Changed classes: Added 'justify-center', increased padding (px-6 py-2) for pill shape
-        className="inline-flex items-center justify-center px-8 py-3 rounded-full cursor-pointer transition hover:opacity-80 group border"
-        style={{ 
-            backgroundColor: currentTheme.border, // Background matches theme
-            borderColor: currentTheme.border     // Border matches theme
-        }}
-      >
-        <img 
-          src={BackLeftIcon} 
-          className="w-4 h-4 transition group-hover:scale-110" 
-          style={{ filter: iconFilter }} // Icon color adapts to theme
-          alt="Back" 
-        />
-        {/* Text removed to match the visual design provided */}
-      </div>
-  </div>
-)}
+        {/* CHANGED: Dynamic padding-top (pt-24) if folder is open, to account for fixed button */}
+        <div className={`absolute inset-0 overflow-auto z-10 os-bg-layer px-6 pb-6 ${currentFolder ? 'pt-24' : 'pt-6'}`}>            
+            
+            {/* REMOVED: Old Back Button location was here */}
 
             {viewMode === 'grid' ? (
                 // --- GRID VIEW ---
@@ -1800,51 +1824,43 @@ return (
                     ))}
 
                     {files.map((file) => {
-    const docId = btoa(file.fullPath);
-    const isOpen = windows.some(w => w.id === docId);
-    // Check if it's a note (no extension or .txt)
-    const isNote = !file.name.includes('.') || file.name.endsWith('.txt');
+                        const docId = btoa(file.fullPath);
+                        const isOpen = windows.some(w => w.id === docId);
+                        const isNote = !file.name.includes('.') || file.name.endsWith('.txt');
 
-    return (
-    <div 
-        key={file.id || file.name}
-        className={`file-item flex flex-col items-center gap-3 group cursor-pointer p-4 rounded-xl transition border`}
-        style={{ 
-            borderColor: isOpen ? currentTheme.accent : 'transparent',
-            backgroundColor: isOpen ? `${currentTheme.accent}20` : 'transparent'
-        }}
-        onClick={(e) => { e.stopPropagation(); openFile(file); }}
-        onContextMenu={(e) => { e.stopPropagation(); e.preventDefault(); setContextMenu(null); setFolderContextMenu(null); setFileContextMenu({ x: e.pageX, y: e.pageY, file }); }}
-    >
-        {isNote ? (
-            // --- NOTE STYLE ---
-            <div className="w-14 h-14 bg-yellow-50 border border-yellow-300 rounded-lg shadow-sm flex flex-col p-2 group-hover:scale-105 transition relative overflow-hidden">
-                {/* Lines to look like text */}
-                <div className="w-full h-1 bg-gray-500 mb-1 rounded-full opacity-50"></div>
-                <div className="w-3/4 h-1 bg-gray-500 mb-1 rounded-full opacity-50"></div>
-                <div className="w-full h-1 bg-gray-400 mb-1 rounded-full opacity-50"></div>
-                {/* Folded corner effect */}
-                <div className="absolute bottom-0 right-0 w-3 h-3 bg-yellow-200 shadow-[-1px_-1px_2px_rgba(0,0,0,0.1)]" style={{clipPath: 'polygon(100% 0, 0 100%, 100% 100%)'}}></div>
-            </div>
-        ) : (
-            // --- FILE STYLE (Original) ---
-            <div className="w-14 h-14 bg-[#222] border border-gray-700 rounded-lg flex items-center justify-center group-hover:scale-105 transition relative pointer-events-none">
-                <span className="text-[8px] absolute top-1 right-1 text-gray-500">{file.name.split('.').pop()}</span>
-                <div className="w-6 h-8 bg-gray-400 rounded-sm"></div>
-            </div>
-        )}
-        
-        {/* Name Label (Hidden for Notes inside the icon, but shown below as normal label) */}
-        {/* You said "dont show name as you are doing with file icon in note". I assume you mean don't show extension inside? 
-            Or do you mean hide the text label below? usually you still need the name below to identify it. 
-            If you want to hide the name *inside* the icon (like "txt" in top right), the Note Style above already removes that.
-        */}
-        <span className={`text-[10px] text-center w-full truncate font-sans tracking-wide pointer-events-none`} style={{ color: starred[docId] ? "#facc15" : currentTheme.text }}>
-            {file.name}
-        </span>
-    </div>
-    );
-})}
+                        return (
+                        <div 
+                            key={file.id || file.name}
+                            className={`file-item flex flex-col items-center gap-3 group cursor-pointer p-4 rounded-xl transition border`}
+                            style={{ 
+                                borderColor: isOpen ? currentTheme.accent : 'transparent',
+                                backgroundColor: isOpen ? `${currentTheme.accent}20` : 'transparent'
+                            }}
+                            onClick={(e) => { e.stopPropagation(); openFile(file); }}
+                            onContextMenu={(e) => { e.stopPropagation(); e.preventDefault(); setContextMenu(null); setFolderContextMenu(null); setFileContextMenu({ x: e.pageX, y: e.pageY, file }); }}
+                        >
+                            {isNote ? (
+                                // --- NOTE STYLE ---
+                                <div className="w-14 h-14 bg-yellow-100 border border-yellow-300 rounded-lg shadow-sm flex flex-col p-2 group-hover:scale-105 transition relative overflow-hidden">
+                                    <div className="w-full h-1 bg-gray-400 mb-1 rounded-full opacity-40"></div>
+                                    <div className="w-3/4 h-1 bg-gray-400 mb-1 rounded-full opacity-40"></div>
+                                    <div className="w-full h-1 bg-gray-400 mb-1 rounded-full opacity-40"></div>
+                                    <div className="absolute bottom-0 right-0 w-3 h-3 bg-yellow-200 shadow-[-1px_-1px_2px_rgba(0,0,0,0.1)]" style={{clipPath: 'polygon(100% 0, 0 100%, 100% 100%)'}}></div>
+                                </div>
+                            ) : (
+                                // --- FILE STYLE ---
+                                <div className="w-14 h-14 bg-[#222] border border-gray-700 rounded-lg flex items-center justify-center group-hover:scale-105 transition relative pointer-events-none">
+                                    <span className="text-[8px] absolute top-1 right-1 text-gray-500">{file.name.split('.').pop()}</span>
+                                    <div className="w-6 h-8 bg-gray-400 rounded-sm"></div>
+                                </div>
+                            )}
+                            
+                            <span className={`text-[10px] text-center w-full truncate font-sans tracking-wide pointer-events-none`} style={{ color: starred[docId] ? "#facc15" : currentTheme.text }}>
+                                {file.name}
+                            </span>
+                        </div>
+                        );
+                    })}
                 </div>
             ) : (
                 // --- LIST VIEW ---
@@ -1883,9 +1899,11 @@ return (
                     ))}
 
                     {files.map((file) => {
-                       const docId = btoa(file.fullPath);
-                       const isOpen = windows.some(w => w.id === docId);
-                       return (
+                        const docId = btoa(file.fullPath);
+                        const isOpen = windows.some(w => w.id === docId);
+                        const isNote = !file.name.includes('.') || file.name.endsWith('.txt');
+
+                        return (
                         <div 
                            key={file.id || file.name}
                            onClick={(e) => { e.stopPropagation(); openFile(file); }}
@@ -1897,34 +1915,33 @@ return (
                            }}
                         >
                             <div className="flex items-center gap-4">
-                                {(!file.name.includes('.') || file.name.endsWith('.txt')) ? (
-    // Note Icon (List View)
-    <div className="w-8 h-8 flex items-center justify-center bg-yellow-50 border border-yellow-300 rounded relative overflow-hidden">
-        <div className="w-4 h-4 border-b-2 border-gray-300 opacity-30"></div>
-    </div>
-) : (
-    // File Icon (List View)
-    <div className="w-8 h-8 flex items-center justify-center bg-[#222] border border-gray-700 rounded">
-        <div className="w-4 h-5 bg-gray-400 rounded-sm"></div>
-    </div>
-)}
+                                {isNote ? (
+                                    <div className="w-8 h-8 flex items-center justify-center bg-yellow-100 border border-yellow-300 rounded relative overflow-hidden">
+                                        <div className="w-4 h-4 border-b-2 border-gray-300 opacity-30"></div>
+                                    </div>
+                                ) : (
+                                    <div className="w-8 h-8 flex items-center justify-center bg-[#222] border border-gray-700 rounded">
+                                        <div className="w-4 h-5 bg-gray-400 rounded-sm"></div>
+                                    </div>
+                                )}
                                 <span className="text-sm font-sans tracking-wide font-space" style={{ color: starred[docId] ? "#facc15" : currentTheme.text }}>
                                     {file.name}
                                 </span>
                             </div>
 
                             <div className="flex items-center gap-4">
-                                <a href={supabase.storage.from("files").getPublicUrl(file.fullPath).data.publicUrl} download={file.name} onClick={e => e.stopPropagation()} className="relative action-btn p-2 hover:bg-white/10 rounded-full transition" data-tooltip="Download">
+                                <button onClick={() => handleDownloadFile(file)} className="relative action-btn p-2 hover:bg-white/10 rounded-full transition" data-tooltip="Download">
                                     <img src={DownloadIcon} className="w-4 h-4" style={{ filter: iconFilter }} alt="dl"/>
-                                </a>
+                                </button>
                                 <button onClick={(e) => { e.stopPropagation(); handleStarFile(file); }} className="relative action-btn p-2 hover:bg-white/10 rounded-full transition" data-tooltip={starred[docId] ? 'Private' : 'Public'}>
-<img src={starred[docId] ? StarOnIcon : StarOffIcon} className="w-4 h-4" style={{ filter: iconFilter }} alt="star"/>                                </button>
+                                    <img src={starred[docId] ? StarOnIcon : StarOffIcon} className="w-4 h-4" style={{ filter: iconFilter }} alt="star"/>
+                                </button>
                                 <button onClick={(e) => { e.stopPropagation(); requestDeleteFile(file); }} className="relative action-btn p-2 hover:bg-white/10 rounded-full transition" data-tooltip="Delete">
                                     <img src={DeleteIcon} className="w-4 h-4" style={{ filter: iconFilter }} alt="del"/>
                                 </button>
                             </div>
                         </div>
-                       );
+                        );
                     })}
                 </div>
             )}
@@ -1933,7 +1950,7 @@ return (
        {/* --- BOTTOM RIGHT VIEW TOGGLES --- */}
         <div className="absolute bottom-6 right-6 z-30 flex gap-2">
             <button 
-                onClick={() => changeViewMode('list')} // <--- UPDATED
+                onClick={() => changeViewMode('list')}
                 className={`w-10 h-10 rounded-full flex items-center justify-center border transition`} 
                 style={{ backgroundColor: viewMode === 'list' ? currentTheme.text : currentTheme.panel, borderColor: viewMode === 'list' ? currentTheme.text : '#333' }}
             >
@@ -1942,7 +1959,7 @@ return (
                 </svg>
             </button>
             <button 
-                onClick={() => changeViewMode('grid')} // <--- UPDATED
+                onClick={() => changeViewMode('grid')} 
                 className={`w-10 h-10 rounded-full flex items-center justify-center border transition`} 
                 style={{ backgroundColor: viewMode === 'grid' ? currentTheme.text : currentTheme.panel, borderColor: viewMode === 'grid' ? currentTheme.text : '#333' }}>
                 <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke={viewMode === 'grid' ? currentTheme.panel : 'gray'} className="w-5 h-5">
@@ -1965,7 +1982,7 @@ return (
             }}
             onMouseDown={() => focusWindow(win.id)} 
           >
-            {/* Window Container - Fix: Rounded Corners + Overflow Hidden to clip children */}
+            {/* Window Container */}
             <div 
                 className={`w-full h-full flex flex-col relative ${win.isMaximized ? '' : 'rounded-xl'} overflow-hidden border`} 
                 style={{ backgroundColor: currentTheme.container, borderColor: currentTheme.border }}
@@ -2008,14 +2025,15 @@ return (
                     </div>
                 )}
 
-                {/* Floating Actions - Icons Adaptive */}
+                {/* Floating Actions */}
                 <div className="absolute bottom-4 right-4 border rounded-full px-4 py-2 flex items-center gap-4 shadow-xl backdrop-blur-sm z-40" style={{ backgroundColor: currentTheme.panel, borderColor: currentTheme.border }} onMouseDown={e => e.stopPropagation()}>
-                    <a href={win.url || "#"} download={win.file.name} className="hover:opacity-70 transition"><img src={DownloadIcon} className="w-4 h-4" style={{ filter: iconFilter }} alt="dl"/></a>
+                    <button onClick={() => handleDownloadFile(win.file)} className="hover:opacity-70 transition"><img src={DownloadIcon} className="w-4 h-4" style={{ filter: iconFilter }} alt="dl"/></button>
                     <div className="w-[1px] h-4" style={{ backgroundColor: currentTheme.border }}></div>
                     <button onClick={() => requestDeleteFile(win.file)} className="hover:opacity-70 transition"><img src={DeleteIcon} className="w-4 h-4" style={{ filter: iconFilter }} alt="del"/></button>
                     <div className="w-[1px] h-4" style={{ backgroundColor: currentTheme.border }}></div>
                     <button onClick={() => handleStarFile(win.file)} className="hover:opacity-70 transition">
-<img src={starred[btoa(win.file.fullPath)] ? StarOnIcon : StarOffIcon} className="w-4 h-4" style={{ filter: iconFilter }} alt="star"/>                    </button>
+                      <img src={starred[btoa(win.file.fullPath)] ? StarOnIcon : StarOffIcon} className="w-4 h-4" style={{ filter: iconFilter }} alt="star"/>
+                    </button>
                 </div>
             </div>
           </div>
@@ -2026,7 +2044,7 @@ return (
       {/* --- NOTIFICATIONS & PROGRESS AREA (FLOATING) --- */}
       <div className="fixed bottom-8 left-8 z-[200] flex flex-col items-start gap-4">
           
-          {/* Progress Bar - Float Design */}
+          {/* Progress Bar */}
           {activeProgress && (
               <div className="backdrop-blur-md border rounded-xl p-4 w-72 shadow-2xl animate-fade-in" style={{ backgroundColor: `${currentTheme.panel}E6`, borderColor: currentTheme.border }}>
                   <div className="flex justify-between text-xs mb-2 font-bold tracking-wide" style={{ color: currentTheme.text }}>
@@ -2042,7 +2060,7 @@ return (
               </div>
           )}
 
-          {/* Toast Messages - Float Design */}
+          {/* Toast Messages */}
           {toasts.map((toast) => (
               <div 
                   key={toast.id} 
@@ -2072,7 +2090,8 @@ return (
         <div className="absolute border rounded-lg p-1 z-[999] shadow-xl" style={{ top: contextMenu.y, left: contextMenu.x, backgroundColor: currentTheme.panel, borderColor: currentTheme.border }} onClick={e => e.stopPropagation()}>
            <button onClick={requestCreateFolder} className="flex items-center gap-2 px-4 py-2 text-xs hover:bg-white/10 w-full text-left rounded" style={{ color: currentTheme.text }}>New Folder</button>
            <button onClick={requestCreateFile} className="flex items-center gap-2 px-4 py-2 text-xs hover:bg-white/10 w-full text-left rounded" style={{ color: currentTheme.text }}>New Note</button>
-<button onClick={handleFileSelectClick} className="flex items-center gap-2 px-4 py-2 text-xs hover:bg-white/10 w-full text-left rounded" style={{ color: currentTheme.text }}>New File</button>        </div>
+           <button onClick={handleFileSelectClick} className="flex items-center gap-2 px-4 py-2 text-xs hover:bg-white/10 w-full text-left rounded" style={{ color: currentTheme.text }}>New File</button>
+        </div>
       )}
       
       {folderContextMenu && (
@@ -2088,9 +2107,10 @@ return (
            <button onClick={() => { openFile(fileContextMenu.file); setFileContextMenu(null); }} className="block w-full text-left px-4 py-2 text-xs hover:bg-white/10 rounded font-bold" style={{ color: currentTheme.accent }}>Open</button>
            <button onClick={() => requestRename(fileContextMenu.file, 'file')} className="block w-full text-left px-4 py-2 text-xs hover:bg-white/10 rounded" style={{ color: currentTheme.text }}>Rename</button>
            <button onClick={() => handleStarFile(fileContextMenu.file)} className="block w-full text-left px-4 py-2 text-xs hover:bg-white/10 rounded" style={{ color: currentTheme.text }}>
-                {starred[btoa(fileContextMenu.file.fullPath)] ? 'Private' : 'Public'}
+               {starred[btoa(fileContextMenu.file.fullPath)] ? 'Private' : 'Public'}
            </button>
-<button onClick={() => handleDownloadFile(fileContextMenu.file)} className="block w-full text-left px-4 py-2 text-xs hover:bg-white/10 rounded" style={{ color: currentTheme.text }}>Download</button>           <button onClick={() => requestDeleteFile(fileContextMenu.file)} className="block w-full text-left px-4 py-2 text-xs text-red-400 hover:bg-white/10 rounded">Delete</button>
+           <button onClick={() => handleDownloadFile(fileContextMenu.file)} className="block w-full text-left px-4 py-2 text-xs hover:bg-white/10 rounded" style={{ color: currentTheme.text }}>Download</button>
+           <button onClick={() => requestDeleteFile(fileContextMenu.file)} className="block w-full text-left px-4 py-2 text-xs text-red-400 hover:bg-white/10 rounded">Delete</button>
          </div>
       )}
 
