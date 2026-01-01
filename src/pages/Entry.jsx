@@ -19,7 +19,7 @@ const useIsMobile = () => {
 
   useEffect(() => {
     const checkIsMobile = () => {
-      setIsMobile(window.innerWidth < 768); // 768px is standard tablet/mobile breakpoint
+      setIsMobile(window.innerWidth < 768);
     };
 
     checkIsMobile();
@@ -39,25 +39,22 @@ const usePerformanceMonitor = () => {
     let lastTime = performance.now();
     let lagCounter = 0;
     
-    // We delay monitoring by 1 second to ignore initial page load stutter
+    // Delay monitoring by 1s to ignore load stutter
     const startMonitoring = setTimeout(() => {
       const checkFPS = () => {
         const now = performance.now();
         const delta = now - lastTime;
         lastTime = now;
 
-        // If a frame takes longer than 50ms (meaning FPS is below 20)
-        if (delta > 50) {
+        if (delta > 50) { // < 20 FPS
           lagCounter++;
         } else {
-          // Slowly decrease counter if frames are smooth
           lagCounter = Math.max(0, lagCounter - 0.5);
         }
 
-        // If we hit 15 "lag points", assume the PC is struggling and disable animation
         if (lagCounter > 15) {
           setIsLowSpec(true);
-          return; // Stop the loop
+          return;
         }
 
         frameId = requestAnimationFrame(checkFPS);
@@ -107,7 +104,11 @@ const toTitleCase = (str) => {
 export default function Entry() {
   const navigate = useNavigate();
   const isMobile = useIsMobile();
-  const isLowPerf = usePerformanceMonitor(); // Check for lag
+  const isLowPerf = usePerformanceMonitor();
+  
+  // Flag: If mobile or lagging, disable blur and use a solid dark background instead
+  const reduceMotion = isMobile || isLowPerf;
+  const glassFallback = reduceMotion ? '!backdrop-blur-none !bg-black/80' : '';
 
   const [users, setUsers] = useState([]);
   const [selectedIndex, setSelectedIndex] = useState(0);
@@ -276,25 +277,19 @@ export default function Entry() {
 
   return (
     <div className="relative min-h-screen w-full bg-black overflow-hidden font-press">
-      {/* Background Layer */}
-      <div className="absolute inset-0 w-full h-full">
-        {isMobile || isLowPerf ? (
-            <div className="w-full h-full bg-black" />
-        ) : (
-            <div className="w-full h-full opacity-80">
-                <ColorBends
-                    colors={["#00fa08ff", "#561becff", "#ff0000ff"]}
-                    rotation={-6}
-                    speed={0.53}
-                    scale={1.2}
-                    frequency={1}
-                    warpStrength={1}
-                    mouseInfluence={1}
-                    parallax={0.5}
-                    noise={0.1}
-                />
-            </div>
-        )}
+      {/* Background Layer - ALWAYS ColorBends, but reduced motion settings may apply if you wanted to pass them to ColorBends, but requirement is just disabling glass blur */}
+      <div className="absolute inset-0 w-full h-full opacity-80">
+        <ColorBends
+            colors={["#00fa08ff", "#561becff", "#ff0000ff"]}
+            rotation={-6}
+            speed={0.53}
+            scale={1.2}
+            frequency={1}
+            warpStrength={1}
+            mouseInfluence={1}
+            parallax={0.5}
+            noise={0.1}
+        />
       </div>
 
       <style>
@@ -355,7 +350,7 @@ export default function Entry() {
                 
                 {/* 1. SEARCH CAPSULE (Top) */}
                 <GlassSurface
-                   className="w-full px-6 py-4"
+                   className={`w-full px-6 py-4 ${glassFallback}`}
                    borderRadius={9999}
                    borderWidth={0.02}
                    distortionScale={-180}
@@ -373,7 +368,8 @@ export default function Entry() {
 
                 {/* 2. USER LIST CONTAINER (Middle) */}
                 <GlassSurface
-                   className="w-full py-4" 
+                   // Optimize: Remove blur on low-spec devices
+                   className={`w-full py-4 ${glassFallback}`} 
                    borderRadius={24}
                    borderWidth={0.02}
                    distortionScale={-180}
@@ -426,7 +422,7 @@ export default function Entry() {
                     {/* 3. SIGN UP PILL (Bottom Left) - WIDER (70%) */}
                     <div className="w-[50%] h-full cursor-pointer" onClick={() => navigate("/signup")}>
                         <GlassSurfaceXO
-                            className="w-full h-full flex items-center justify-center py-2"
+                            className={`w-full h-full flex items-center justify-center py-2 ${glassFallback}`}
                             borderRadius={9999}
                             borderWidth={0.02}
                             distortionScale={-180}
@@ -440,7 +436,7 @@ export default function Entry() {
                     {/* 4. GOOGLE BUTTON (Bottom Right - Circular) - Aspect Square */}
                     <div className="aspect-square h-full cursor-pointer" onClick={handleGoogleLogin}>
                         <GlassSurfaceXO
-                            className="w-full h-full flex items-center justify-center py-2"
+                            className={`w-full h-full flex items-center justify-center py-2 ${glassFallback}`}
                             borderRadius={9999}
                             borderWidth={0.02}
                             distortionScale={-180}
@@ -458,7 +454,8 @@ export default function Entry() {
             // --- PASSWORD CONFIRMATION VIEW ---
             /* WIDENED CONTAINER: max-w-lg */
             <GlassSurface
-                className="w-full max-w-lg p-8"
+                // Optimize: Remove blur on low-spec devices
+                className={`w-full max-w-lg p-8 ${glassFallback}`}
                 borderRadius={32}
                 borderWidth={0.02}
                 distortionScale={-180}

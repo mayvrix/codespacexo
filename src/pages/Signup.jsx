@@ -14,7 +14,7 @@ const useIsMobile = () => {
 
   useEffect(() => {
     const checkIsMobile = () => {
-      setIsMobile(window.innerWidth < 768);
+      setIsMobile(window.innerWidth < 768); // 768px is standard tablet/mobile breakpoint
     };
 
     checkIsMobile();
@@ -45,7 +45,7 @@ const usePerformanceMonitor = () => {
         if (delta > 50) {
           lagCounter++;
         } else {
-          // Slowly decrease counter if frames are smooth, so random spikes don't trigger it immediately
+          // Slowly decrease counter if frames are smooth
           lagCounter = Math.max(0, lagCounter - 0.5);
         }
 
@@ -84,7 +84,7 @@ const EyeSlashIcon = ({ className }) => (
   </svg>
 );
 
-// --- HYPERSPEED OPTIONS ---
+// --- HYPERSPEED OPTIONS (MATCHING ENTRY THEME) ---
 const hyperspeedOptions = {
   onSpeedUp: () => {},
   onSlowDown: () => {},
@@ -128,7 +128,11 @@ const MemoizedHyperspeed = React.memo(Hyperspeed);
 export default function SignUp() {
   const navigate = useNavigate();
   const isMobile = useIsMobile();
-  const isLowPerf = usePerformanceMonitor(); // Check for lag on PC
+  const isLowPerf = usePerformanceMonitor(); 
+
+  // Flag: If mobile or lagging, disable blur and use a solid dark background instead
+  const reduceMotion = isMobile || isLowPerf;
+  const glassFallback = reduceMotion ? '!backdrop-blur-none !bg-black/80' : '';
 
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
@@ -153,26 +157,31 @@ export default function SignUp() {
   const handleSignUp = async (e) => {
     e.preventDefault();
 
+    // 1. Check for empty fields
     if (!name || !email || !password || !confirmPassword) {
       setError("All fields are required.");
       return;
     }
 
+    // 2. Check Name
     if (!name.trim().includes(" ")) {
       setError("Please enter your full name (First & Last).");
       return;
     }
 
+    // 3. Check Email Format
     if (!validateEmail(email)) {
       setError("Please enter a valid email address.");
       return;
     }
 
+    // 4. Check Password Match
     if (password !== confirmPassword) {
       setError("Passwords do not match.");
       return;
     }
 
+    // 5. Check Password Length
     if (password.length < 6) {
       setError("Password must be at least 6 characters.");
       return;
@@ -206,14 +215,9 @@ export default function SignUp() {
 
   return (
     <div className="relative min-h-screen w-full bg-black overflow-hidden font-doto font-bold text-white">
-      {/* Background Layer */}
+      {/* Background Layer - ALWAYS Hyperspeed, but reduced motion settings may apply if you wanted to pass them */}
       <div className="absolute inset-0 z-0 pointer-events-none">
-        {/* If Mobile OR Low Performance PC, show black. Otherwise show Hyperspeed */}
-        {isMobile || isLowPerf ? (
-            <div className="w-full h-full bg-black" />
-        ) : (
-            <MemoizedHyperspeed effectOptions={hyperspeedOptions} />
-        )}
+         <MemoizedHyperspeed effectOptions={hyperspeedOptions} />
       </div>
 
       <style>
@@ -235,16 +239,16 @@ export default function SignUp() {
       </style>
 
       {/* Content Layer */}
-      <div className="relative z-10 flex flex-col items-center justify-center min-h-screen p-4 pb-24">
+      <div className="relative z-10 flex flex-col items-center justify-center min-h-screen p-4">
         
-       {/* Header Section */}
-       <div className="flex flex-col items-center mb-6">
-         <img
-           src={Logo}
-           alt="XO Logo"
-           className="w-24 h-24 md:w-32 md:h-32 mb-0 object-contain"
-         />
-       </div>
+        {/* Header Section */}
+        <div className="flex flex-col items-center mb-6">
+          <img 
+            src={Logo} 
+            alt="XO Logo" 
+            className="w-24 h-24 md:w-32 md:h-32 mb-0 object-contain"
+          />
+        </div>
 
         {/* --- MAIN FORM CONTAINER --- */}
         <form onSubmit={handleSignUp} className="w-full max-w-lg flex flex-col gap-4">
@@ -256,7 +260,7 @@ export default function SignUp() {
 
             {/* 1. Name Input */}
             <GlassSurfaceXO
-                className="w-full h-14"
+                className={`w-full h-14 ${glassFallback}`}
                 borderRadius={9999}
                 borderWidth={0.02}
                 distortionScale={-180}
@@ -276,7 +280,7 @@ export default function SignUp() {
 
             {/* 2. Email Input */}
             <GlassSurfaceXO
-                className="w-full h-14"
+                className={`w-full h-14 ${glassFallback}`}
                 borderRadius={9999}
                 borderWidth={0.02}
                 distortionScale={-180}
@@ -296,7 +300,7 @@ export default function SignUp() {
 
             {/* 3. Password Input */}
             <GlassSurfaceXO
-                className="w-full h-14"
+                className={`w-full h-14 ${glassFallback}`}
                 borderRadius={9999}
                 borderWidth={0.02}
                 distortionScale={-180}
@@ -323,7 +327,7 @@ export default function SignUp() {
 
             {/* 4. Confirm Password Input */}
             <GlassSurfaceXO
-                className="w-full h-14"
+                className={`w-full h-14 ${glassFallback}`}
                 borderRadius={9999}
                 borderWidth={0.02}
                 distortionScale={-180}
@@ -362,7 +366,7 @@ export default function SignUp() {
                     className="flex-1 h-full block group p-0 m-0 border-none bg-transparent outline-none appearance-none cursor-pointer"
                 >
                      <GlassSurfaceXO
-                        className="py-2 w-full h-full flex items-center justify-center"
+                        className={`py-2 w-full h-full flex items-center justify-center ${glassFallback}`}
                         borderRadius={9999}
                         borderWidth={0.02}
                         distortionScale={-180}
@@ -380,7 +384,7 @@ export default function SignUp() {
                   className="flex-1 h-full block group p-0 m-0 border-none bg-transparent outline-none appearance-none cursor-pointer"
                 >
                     <GlassSurfaceXO
-                        className="py-2 w-full h-full flex items-center justify-center"
+                        className={`py-2 w-full h-full flex items-center justify-center ${glassFallback}`}
                         borderRadius={9999}
                         borderWidth={0.02}
                         distortionScale={-180}
