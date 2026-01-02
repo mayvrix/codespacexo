@@ -202,10 +202,10 @@ export default function Public() {
             if (level >= 1 && level <= 6) {
                 const content = trimmed.substring(level).trim();
                 let fontSize = "text-base font-bold text-gray-200 mt-2 mb-1";
-                if (level === 1) fontSize = "text-3xl font-extrabold font-space text-blue-400 border-b border-white/20 pb-2 mt-6 mb-4"; 
-                if (level === 2) fontSize = "text-2xl font-bold font-space text-blue-300 mt-5 mb-3"; 
-                if (level === 3) fontSize = "text-xl font-bold font-space text-purple-300 mt-4 mb-2";  
-                if (level === 4) fontSize = "text-lg font-semibold font-space text-white mt-3 mb-2";  
+                if (level === 1) fontSize = "text-2xl font-press text-blue-400 border-b border-white/20 pb-2 mt-6 mb-4"; 
+                if (level === 2) fontSize = "text-2xl font-bold font-doto text-blue-300 mt-5 mb-3"; 
+                if (level === 3) fontSize = "text-xl font-bold font-doto text-purple-300 mt-4 mb-2";  
+                if (level === 4) fontSize = "text-lg font-semibold font-doto text-white mt-3 mb-2";  
                 return <div key={lineIndex} className={fontSize}>{content}</div>;
             }
         }
@@ -213,7 +213,7 @@ export default function Public() {
         if (trimmed.startsWith(">")) {
              const content = trimmed.substring(1).trim();
              return (
-                <div key={lineIndex} className="min-h-[1.2em] italic text-gray-400 border-l-4 border-gray-600 pl-4 py-1 my-2 bg-white/5 rounded-r">
+                <div key={lineIndex} className="font-doto min-h-[1.2em] italic text-gray-400 border-l-4 border-gray-600 pl-4 py-1 my-2 bg-white/5 rounded-r">
                     {content}
                 </div>
              );
@@ -228,14 +228,14 @@ export default function Public() {
         return (
             <div key={lineIndex} className="min-h-[1.2em] leading-relaxed my-1">
                 {tokens.map((token, i) => {
-                    if (token.startsWith("**") && token.endsWith("**")) return <span key={i} className="text-orange-400 font-bold">{token.slice(2, -2)}</span>;
-                    if (token.startsWith("`") && token.endsWith("`")) return <span key={i} className="text-green-400 bg-white/10 rounded px-1 font-mono text-[0.9em]">{token.slice(1, -1)}</span>;
+                    if (token.startsWith("**") && token.endsWith("**")) return <span key={i} className="font-doto text-orange-400 font-bold">{token.slice(2, -2)}</span>;
+                    if (token.startsWith("`") && token.endsWith("`")) return <span key={i} className="text-green-400 bg-white/10 rounded px-1 font-doto text-[0.9em]">{token.slice(1, -1)}</span>;
                     if (token.startsWith("[") && token.includes("](") && token.endsWith(")")) {
                         const linkText = token.match(/\[(.*?)\]/)[1];
-                        return <span key={i} className="text-cyan-400 underline decoration-dotted cursor-pointer hover:text-cyan-300">{linkText}</span>;
+                        return <span key={i} className="font-doto text-cyan-400 underline decoration-dotted cursor-pointer hover:text-cyan-300">{linkText}</span>;
                     }
                     if (/^\s*[-*]\s/.test(token) || /^\s*\d+\.\s/.test(token)) return <span key={i} className="text-yellow-400 mr-2 font-bold inline-block ml-1 select-none">{token.trim()}</span>;
-                    return <span key={i} className="text-gray-300">{token}</span>;
+                    return <span key={i} className="font-doto text-white">{token}</span>;
                 })}
             </div>
         );
@@ -375,7 +375,7 @@ export default function Public() {
             ) : (
                 userData.map((user) => (
                 <div key={user.id} className="mb-6">
-                    <div className="text-sm font-bold tracking-wide text-lime-400 mb-2 px-2">
+                    <div className="text-base font-bold tracking-wide text-lime-400 mb-2 px-2">
                         {user.name}
                     </div>
                     <div className="flex flex-col gap-2 border-l-2 border-white ml-3 pl-3">
@@ -386,7 +386,7 @@ export default function Public() {
                                     ${previewFile?.path === file.path ? "bg-white/10 border-white/40" : "border-white/5 hover:border-white/20 hover:bg-white/5"}`}
                             onClick={() => handlePreview(file)}
                         >
-                            <span className="text-xs truncate font-space w-full text-gray-300 group-hover:text-white">
+                            <span className="text-sm truncate font-space w-full text-gray-300 group-hover:text-white">
                                 {file.name}
                             </span>
                         </div>

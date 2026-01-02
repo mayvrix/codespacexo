@@ -39,7 +39,7 @@ export default function IntroNext() {
             preload="auto"
             crossOrigin="anonymous"
             loading="lazy"
-            className="w-full h-full object-cover"
+            className="w-full h-full object-contain md:object-cover"
             poster="https://via.placeholder.com/800x600/000000/FFFFFF?text=Loading+Video..."
           ></video>
 
@@ -76,7 +76,7 @@ export default function IntroNext() {
             preload="auto"
             crossOrigin="anonymous"
             loading="lazy"
-            className="w-full h-full object-cover"
+            className="w-full h-full object-contain md:object-cover"
             poster="https://via.placeholder.com/800x600/000000/FFFFFF?text=Loading+Video..."
           ></video>
 
@@ -114,7 +114,7 @@ export default function IntroNext() {
             preload="auto"
             crossOrigin="anonymous"
             loading="lazy"
-            className="w-full h-full object-cover"
+            className="w-full h-full object-contain md:object-cover"
             poster="https://via.placeholder.com/800x600/000000/FFFFFF?text=Loading+Video..."
           ></video>
 
@@ -156,7 +156,7 @@ export default function IntroNext() {
             preload="auto"
             crossOrigin="anonymous"
             loading="lazy"
-            className="w-full h-full object-cover"
+            className="w-full h-full object-contain md:object-cover"
             poster="https://via.placeholder.com/800x600/000000/FFFFFF?text=Loading+Video..."
           ></video>
 

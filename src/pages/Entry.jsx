@@ -6,7 +6,9 @@ import {
   signInWithEmailAndPassword,
   sendPasswordResetEmail,
   GoogleAuthProvider,
-  signInWithPopup
+  signInWithPopup,
+  signInWithRedirect, // for mobile
+  getRedirectResult   // for mobile
 } from "firebase/auth";
 import Logo from "../assets/xoMod.png";
 import ColorBends from '../comps/bends';
@@ -217,40 +219,79 @@ export default function Entry() {
     }
   };
 
-  const handleGoogleLogin = async () => {
+  // 1. Handle the "Return" from Google (Run only once on mount)
+  useEffect(() => {
+    const handleRedirectResult = async () => {
+      try {
+        const result = await getRedirectResult(auth);
+        if (result && result.user) {
+          console.log("Mobile Redirect Success:", result.user);
+          // Process the user (same logic as popup)
+          await processGoogleUser(result.user);
+        }
+      } catch (error) {
+        console.error("Redirect Error:", error);
+        // ALERT THE ERROR ON MOBILE SO YOU CAN SEE IT
+        if (isMobile) alert(`Login Error: ${error.message}`);
+        setError(error.message);
+      }
+    };
+    handleRedirectResult();
+  }, [isMobile]); // Dependencies
+
+  // 2. The Logic to Process a User (Shared by Popup & Redirect)
+  const processGoogleUser = async (user) => {
     setLoading(true);
-    setError("");
-    const provider = new GoogleAuthProvider();
-    
     try {
-        const result = await signInWithPopup(auth, provider);
-        const user = result.user;
+      const userDocRef = doc(db, "users", user.uid);
+      const userDoc = await getDoc(userDocRef);
 
-        // CHECK if user exists in Firestore
-        const userDocRef = doc(db, "users", user.uid);
-        const userDoc = await getDoc(userDocRef);
-
-        if (userDoc.exists()) {
-            // User exists, update login time and proceed
-            await updateDoc(userDocRef, { lastLogin: Date.now() });
-            navigate("/home");
-        } else {
-            // User DOES NOT exist - delete auth user to prevent signup and show error
-            await user.delete(); 
-            setError("Account not found. Please Sign Up first.");
-            // Sign out just in case delete fails partially
-            await auth.signOut();
-        }
+      if (userDoc.exists()) {
+        await updateDoc(userDocRef, { lastLogin: Date.now() });
+        navigate("/home");
+      } else {
+        // User not in your 'users' collection -> Delete and reject
+        await user.delete();
+        setError("Account not found. Please Sign Up first.");
+        if (isMobile) alert("Account not found in database.");
+        await auth.signOut();
+      }
     } catch (err) {
-        console.error("Google Login Error:", err);
-        if (err.code !== 'auth/cancelled-popup-request' && err.code !== 'auth/popup-closed-by-user') {
-             setError("Google login failed.");
-        }
+      console.error("Process User Error:", err);
+      setError("Failed to verify account.");
     } finally {
-        setLoading(false);
+      setLoading(false);
     }
   };
 
+  // 3. The Login Trigger
+  const handleGoogleLogin = async () => {
+    setError("");
+    const provider = new GoogleAuthProvider();
+
+    try {
+      if (isMobile) {
+        // MOBILE: REDIRECT STRATEGY
+        // This will reload the page. The useEffect above handles the return.
+        setLoading(true);
+        await signInWithRedirect(auth, provider);
+      } else {
+        // DESKTOP: POPUP STRATEGY
+        setLoading(true);
+        const result = await signInWithPopup(auth, provider);
+        await processGoogleUser(result.user);
+      }
+    } catch (err) {
+      console.error("Login Trigger Error:", err);
+      setLoading(false);
+      // Ignore "popup closed by user" errors
+      if (err.code !== 'auth/popup-closed-by-user' && err.code !== 'auth/cancelled-popup-request') {
+         setError("Google login failed.");
+         if (isMobile) alert(`Trigger Error: ${err.message}`);
+      }
+    }
+  };
+  
   const handleForgotPassword = async () => {
     if (!confirmedUser) return;
     setError("");
