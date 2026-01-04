@@ -15,16 +15,84 @@ body {
 }
 
 /* --- ANIMATED GRADIENT BORDER --- */
-@keyframes gradient-xy {
-  0%, 100% { background-position: 0% 50%; }
-  50% { background-position: 100% 50%; }
+
+@keyframes spinWithCenter {
+  from {
+    transform: translate(-50%, -50%) rotate(0deg);
+  }
+  to {
+    transform: translate(-50%, -50%) rotate(360deg);
+  }
 }
 
 .animated-gradient-border {
-  background: linear-gradient(45deg, #f63b3b, #3b82f6, #8b5cf6, #ec4899, #83f63b);
-  background-size: 300% 300%;
-  animation: gradient-xy 3s ease infinite;
-  padding: 1px; /* This controls border thickness */
-  border-radius: 9999px; /* Fully rounded */
-  display: inline-block;
+  position: relative;
+  overflow: hidden; /* 1. Clip the huge spinning element */
+  padding: 0.5px;     /* 2. Control border thickness here */
+  border-radius: 9999px;
+  isolation: isolate; /* Ensures z-index works correctly */
 }
+
+/* The Spinning Gradient Background */
+.animated-gradient-border::before {
+  content: "";
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  /* 3. Make it HUGE so it covers the button even when spinning */
+  width: 150%; 
+  height: 500%; 
+  background: conic-gradient(
+    #7e4cf3,
+    #7e4cf3,
+    #fa4da4,
+    #947702,
+    #f63b3b,
+    #9b74f7
+  );
+  /* 4. Use the new keyframe that keeps it centered */
+  animation: spinWithCenter 3s linear infinite;
+}
+
+/* The Inner Panel (Black Background) */
+.gradient-inner {
+  position: relative;
+  z-index: 10; /* 5. Sit ON TOP of the spinning gradient */
+  background-color: #000; /* Must be solid color to hide the center */
+  border-radius: inherit;
+  height: 100%;
+  width: 100%;
+}
+
+
+
+
+/* === STRANGER THINGS XO === */
+.xo-st {
+  color: white;
+  display: inline-block;
+  transition: color 0.15s ease;
+}
+
+/* ACTIVE (flicker) */
+.xo-st.active {
+  color: #e50914; /* Stranger Things red */
+  animation: st-flicker 0.6s steps(2, end);
+  text-shadow:
+    0 0 4px #e50914,
+    0 0 10px rgba(229, 9, 20, 0.8),
+    0 0 20px rgba(229, 9, 20, 0.6);
+}
+
+/* Flicker like broken neon */
+@keyframes st-flicker {
+  0%   { opacity: 1; }
+  10%  { opacity: 0.2; }
+  20%  { opacity: 1; }
+  35%  { opacity: 0.05; }
+  50%  { opacity: 1; }
+  65%  { opacity: 0.3; }
+  80%  { opacity: 1; }
+  100% { opacity: 1; }
+}
+

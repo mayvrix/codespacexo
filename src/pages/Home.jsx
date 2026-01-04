@@ -1631,15 +1631,22 @@ return (
             </button>
 
             {/* Public Button (Gradient Wrapper) */}
-            <div className="animated-gradient-border rounded-full p-[2px]">
-                <button 
-                onClick={() => navigate("/public")} 
-                className="px-6 py-4 rounded-full transition text-xs tracking-widest font-bold hover:opacity-80 h-full w-full" 
-                style={{ backgroundColor: currentTheme.panel, color: currentTheme.text }}
-                >
-                PUBLIC
-                </button>
-            </div>
+            <div className="animated-gradient-border rounded-full">
+  <div
+    className="gradient-inner rounded-full w-full h-full"
+    style={{ backgroundColor: currentTheme.panel }}
+  >
+    <button
+      onClick={() => navigate("/public")}
+      className="px-6 py-4 rounded-full transition text-xs tracking-widest
+                 font-bold hover:opacity-80 w-full h-full"
+      style={{ color: currentTheme.text }}
+    >
+      PUBLIC
+    </button>
+  </div>
+</div>
+
 
             {/* Bin Button */}
             <button 
@@ -1703,15 +1710,28 @@ return (
               <h2 className="text-xl tracking-[0.3em] font-bold mb-auto mt-2" style={{ color: currentTheme.text }}>MENU</h2>
 
               <div className="flex flex-col gap-5 w-full px-8 pb-12 mt-auto">
-                <div className="animated-gradient-border block rounded-full p-[2px] w-full">
-                  <button 
-                    onClick={() => { navigate("/public"); setIsMenuOpen(false); }}
-                    className="w-full py-3 rounded-full font-bold tracking-widest text-xs hover:opacity-80 transition h-full bg-black"
-                    style={{ backgroundColor: currentTheme.panel, color: currentTheme.text }}
-                  >
-                    Public
-                  </button>
-                </div>
+              <div className="animated-gradient-border w-full">
+  <div
+    className="gradient-inner w-full rounded-full"
+    style={{ backgroundColor: "#000" }}  // 👈 TEMP TEST
+  >
+    <button
+      onClick={() => {
+        navigate("/public");
+        setIsMenuOpen(false);
+      }}
+      className="w-full py-3 rounded-full font-bold tracking-widest text-xs
+                 transition hover:opacity-80"
+      style={{ color: currentTheme.text }}
+    >
+      Public
+    </button>
+  </div>
+</div>
+
+
+
+
 
                 <button 
                   onClick={() => { navigate("/bin"); setIsMenuOpen(false); }}
@@ -1995,9 +2015,13 @@ return (
                    style={{ backgroundColor: currentTheme.panel, borderColor: currentTheme.border }}
                 >
                     <div className="flex gap-2 items-center" onMouseDown={e => e.stopPropagation()}>
-                        <button onClick={() => closeWindow(win.id)} className="w-3 h-3 rounded-full bg-red-500 hover:bg-red-400" title="Close"></button>
+                        <button onClick={() => closeWindow(win.id)}
+                    className="w-4 h-4 rounded-full bg-red-500 hover:bg-red-400 flex items-center justify-center text-white text-[9px] leading-none opacity-80 hover:opacity-100 font-doto font-bold"
+                    title="Close"
+                    > X </button>
+
                         {!win.isMobileMode && (
-                            <button onClick={() => toggleMaximize(win.id)} className="w-3 h-3 rounded-full bg-yellow-500 hover:bg-yellow-400" title="Maximize/Restore"></button>
+                            <button onClick={() => toggleMaximize(win.id)} className="w-4 h-4 rounded-full bg-yellow-500 hover:bg-yellow-400" title="Maximize/Restore"></button>
                         )}
                     </div>
                     

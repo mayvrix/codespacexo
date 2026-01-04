@@ -33,6 +33,29 @@ export default function Public() {
   // Responsive Check (Outside Return)
   const [isDesktop, setIsDesktop] = useState(window.innerWidth >= 768);
 
+  const [isGlitch, setIsGlitch] = useState(false);
+  const duration = 120 + Math.random() * 100;
+
+useEffect(() => {
+  let timeout;
+
+  const blinkXO = () => {
+    setIsGlitch(true);
+
+    // XO stays red for 80–180ms
+    const onTime = 80 + Math.random() * 100;
+    setTimeout(() => setIsGlitch(false), onTime);
+
+    // next blink after random 1.5–5 seconds
+    const next = 1500 + Math.random() * 3500;
+    timeout = setTimeout(blinkXO, next);
+  };
+
+  timeout = setTimeout(blinkXO, 2000);
+  return () => clearTimeout(timeout);
+}, []);
+
+
   useEffect(() => {
     const handleResize = () => {
       setIsDesktop(window.innerWidth >= 768);
@@ -326,6 +349,7 @@ export default function Public() {
         </div>
     );
   };
+  
 
   return (
     <div className="h-screen overflow-hidden font-press flex flex-col transition-colors duration-300 bg-black text-white p-4 md:p-6">
@@ -351,7 +375,14 @@ export default function Public() {
         
         {/* Toggle based on isDesktop state */}
         {isDesktop ? (
-            <h1 className="text-2xl tracking-widest text-white text-center">CODESPACEXO</h1>
+
+<h1 className="text-2xl tracking-widest text-center text-white">
+  CODESPACE<span className={`xo-st ${isGlitch ? "active" : ""}`}>XO</span>
+</h1>
+
+
+
+
         ) : (
             <div className="flex justify-center">
                  <img src={XOIcon} className="h-14 w-auto" alt="Logo" />
@@ -408,15 +439,22 @@ export default function Public() {
                         <div className="h-10 bg-[#1a1a1a] border-b border-white/10 flex items-center px-4 relative justify-center flex-shrink-0">
                             {/* Close Button */}
                             <div className="absolute left-4 flex items-center z-10">
-                                <button
-                                onClick={() => {
-                                    setPreviewFile(null);
-                                    setPreviewContent("");
-                                    setPreviewUrl("");
-                                }}
-                                className="w-3.5 h-3.5 rounded-full bg-[#FF5F57] hover:bg-[#FF5F57]/80 shadow-md transition-transform active:scale-90"
-                                title="Close File"
-                                ></button>
+                               <button
+  onClick={() => {
+    setPreviewFile(null);
+    setPreviewContent("");
+    setPreviewUrl("");
+  }}
+  className="w-4 h-4 rounded-full bg-[#FF5F57] hover:bg-[#FF5F57]/80
+             shadow-md transition-transform active:scale-90
+             flex items-center justify-center
+             text-white text-[8px] leading-none
+             font-doto font-bold"
+  title="Close File"
+>
+  X
+</button>
+
                             </div>
 
                             {/* File Name */}
@@ -468,13 +506,21 @@ export default function Public() {
                          {/* Close Button Mobile */}
                          <div className="absolute left-4 flex items-center z-10">
                             <button
-                                onClick={() => {
-                                    setPreviewFile(null);
-                                    setPreviewContent("");
-                                    setPreviewUrl("");
-                                }}
-                                className="w-3.5 h-3.5 rounded-full bg-[#FF5F57] hover:bg-[#FF5F57]/80 shadow-md transition-transform active:scale-90"
-                            ></button>
+  onClick={() => {
+    setPreviewFile(null);
+    setPreviewContent("");
+    setPreviewUrl("");
+  }}
+  className="w-4 h-4 rounded-full bg-[#FF5F57] hover:bg-[#FF5F57]/80
+             shadow-md transition-transform active:scale-90
+             flex items-center justify-center
+             text-white text-[9px] leading-none
+             font-doto font-bold"
+  title="Close"
+>
+  X
+</button>
+
                         </div>
                         <span className="font-space text-[10px] text-gray-400 tracking-wider truncate max-w-[50%]">
                             {previewFile.name}
