@@ -1,7 +1,7 @@
 import React, { useEffect, useState, useRef, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
 import { db, auth } from "../firebase";
-import { collection, getDocs, doc, updateDoc, getDoc } from "firebase/firestore";
+import { collection, getDocs, doc, updateDoc, getDoc, increment} from "firebase/firestore";
 import {
   signInWithEmailAndPassword,
   sendPasswordResetEmail,
@@ -14,6 +14,8 @@ import Logo from "../assets/xoMod.png";
 import ColorBends from '../comps/bends';
 import GlassSurface from '../comps/glass';
 import GlassSurfaceXO from '../comps/glassx';
+
+import VerifiedBadge from "../assets/verified.png";
 
 // --- Custom Hook to Detect Mobile Device ---
 const useIsMobile = () => {
@@ -197,7 +199,7 @@ export default function Entry() {
     }
   }, [selectedIndex, filteredUsers]);
 
-  const handleLogin = async () => {
+ const handleLogin = async () => {
     if (!confirmedUser || !password) {
       setError("Enter password!");
       setShowResetLink(false);
@@ -208,8 +210,14 @@ export default function Entry() {
       setError("");
       setShowResetLink(false);
       await signInWithEmailAndPassword(auth, confirmedUser.email, password);
+      
+      // Update lastLogin AND increment userlogins count
       const userDocRef = doc(db, "users", confirmedUser.uid);
-      await updateDoc(userDocRef, { lastLogin: Date.now() });
+      await updateDoc(userDocRef, { 
+        lastLogin: Date.now(),
+        userlogins: increment(1)
+      });
+      
       navigate("/home");
     } catch (err) {
       setError("Wrong password!");
@@ -247,7 +255,12 @@ export default function Entry() {
       const userDoc = await getDoc(userDocRef);
 
       if (userDoc.exists()) {
-        await updateDoc(userDocRef, { lastLogin: Date.now() });
+        // Update lastLogin AND increment userlogins count
+        await updateDoc(userDocRef, { 
+          lastLogin: Date.now(),
+          userlogins: increment(1) 
+        });
+        
         navigate("/home");
       } else {
         // User not in your 'users' collection -> Delete and reject
@@ -440,8 +453,18 @@ export default function Entry() {
       : "hover:bg-white/5 opacity-70"
   }`}
                             >
-                              {/* Left Aligned Text */}
-                              <span className="text-md text-left flex-1">{user.name}</span>
+                              {/* Left Aligned Text with Verified Badge */}
+<span className="text-md text-left flex-1 flex items-center gap-2">
+  {user.name}
+  {/* Only render if verified is strictly true or truthy */}
+  {user.verified && (
+    <img 
+      src={VerifiedBadge} 
+      alt="Verified" 
+      className="w-5 h-5 object-contain" 
+    />
+  )}
+</span>
                               
                               {/* Arrow on the Right, pointing Left */}
                               {selectedIndex === index && (
